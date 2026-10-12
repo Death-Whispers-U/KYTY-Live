@@ -16,6 +16,7 @@ _DLSYM = re.compile(r"^unresolved dlsym: handle = \d+, module = (.*), symbol = (
 _DEVICE_LOST = re.compile(r"^(DeviceLost|VulkanFailure): (\S+) failed with (\S+)$")
 _DEVICE_FAULT = re.compile(r"^DeviceFault: (.*)$")
 _GPU_CHECKPOINT = re.compile(r"^GpuCheckpoint: (.*)$")
+_WRITEBACK_CONFLICT = re.compile(r"^WritebackConflict: (\w+) addr=(0x[0-9a-fA-F]+) size=(0x[0-9a-fA-F]+).*; (\w+)")
 _SHADER_TRACE = re.compile(r"^ShaderTrace: (.*)$")
 _SHADER_NAME = re.compile(r"\b(?:vs|hs|ds|gs|es|ls|ps|cs|ms)_[0-9a-f]{16}\b")
 _VALIDATION = re.compile(r"Validation Error|VUID-")
@@ -40,6 +41,7 @@ SEVERITY = {
     "vulkan_failure": "critical",
     "device_fault": "critical",
     "gpu_checkpoint": "critical",
+    "writeback_conflict": "critical",
     "list_cycle": "critical",
     "shader_trace": "info",
     "vulkan_validation": "error",
@@ -145,6 +147,13 @@ class Classifier:
         m = _DEVICE_FAULT.match(s)
         if m:
             return self._emit("device_fault", _normalize(m.group(1)), t, text=m.group(1))
+
+        m = _WRITEBACK_CONFLICT.match(s)
+        if m:
+            kind, addr, size, action = m.groups()
+            # One issue per kind of writeback; the count says how often it happened.
+            return self._emit("writeback_conflict", kind, t, text=f"GPU {kind} writeback over newer guest data "
+                              f"(first at {addr}, {size} bytes; {action})")
 
         m = _GPU_CHECKPOINT.match(s)
         if m:

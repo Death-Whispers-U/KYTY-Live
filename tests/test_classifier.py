@@ -74,6 +74,15 @@ class ClassifierTest(unittest.TestCase):
         self.assertEqual(ev[1]["text"], "written by draw ps_bbbf6645f5234056 submit=11 (3 writes ago) at 0x000200000000+0x100")
         self.assertEqual(ev[1]["shaders"], ["ps_bbbf6645f5234056"])
 
+    def test_writeback_conflicts_are_critical_and_grouped_by_kind(self):
+        ev = self.feed(
+            "WritebackConflict: image addr=0x11e8000000 size=0x400000 guest memory changed since the writeback was recorded; written (conflict #1)",
+            "WritebackConflict: image addr=0x11f0000000 size=0x10000 guest memory changed since the writeback was recorded; written (conflict #2)",
+            "WritebackConflict: buffer addr=0x0330000000 size=0x100 guest memory changed since the writeback was recorded; skipped (conflict #3)")
+        self.assertEqual([e["kind"] for e in ev], ["writeback_conflict", "writeback_conflict"])
+        self.assertEqual(ev[0]["severity"], "critical")
+        self.assertEqual(self.c.issues[ev[0]["sig"]]["count"], 2)
+
     def test_device_fault_not_available_is_reported(self):
         ev = self.feed("DeviceFault: not available (VK_EXT_device_fault is not enabled on this device)")
         self.assertEqual(ev[0]["kind"], "device_fault")
