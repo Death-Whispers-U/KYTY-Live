@@ -346,6 +346,9 @@ textarea { width: 100%; min-height: 120px; resize: vertical; padding: 8px; borde
       <div class="optspanel" role="group" aria-label="Emulator options">
         <div class="note">Used by Run, Rebuild &amp; rerun and Sweep. Read from this build's <code>--help</code>.</div>
         <div class="opts" id="opts"></div>
+        <div class="optshead">Save data</div>
+        <label class="opt"><input type="checkbox" id="freshsave"><code>Fresh save</code>
+          <small>Games start as if never played: your save is moved aside before each run and put back when it ends. The run's own save is kept with the run.</small></label>
         <div class="optshead">Auto snapshots</div>
         <div class="autosnap">
           <label>Every <input type="number" id="snapevery" min="0" max="600" step="1" value="5" aria-label="Seconds between automatic snapshots"> s</label>
@@ -1334,6 +1337,10 @@ function showSnapshot(r) {
   div.innerHTML = `<span class="t">${r.t.toFixed(1)}</span>▣ ${esc(label)} <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.file)}</a><br><img src="${esc(r.url)}" alt="Game window at ${r.t.toFixed(1)}s" style="max-width:100%;margin:4px 0;border:1px solid var(--line)">`;
   queueLogNode("log", div);
 }
+$("freshsave").addEventListener("change", (e) => act(async () => {
+  const r = await api("/api/fresh-save", { on: e.target.checked });
+  e.target.checked = r.fresh_save;
+}));
 $("snap").addEventListener("click", () => act(async () => showSnapshot(await api("/api/snapshot", {}))));
 for (const id of ["snapevery", "snapkeep"]) {
   $(id).addEventListener("change", () => act(async () => {
@@ -1628,6 +1635,7 @@ function connect() {
   state.keys = s.keys;
   emuOptions = s.options || [];
   renderDisplays(s.displays || [], s.display);
+  $("freshsave").checked = !!s.fresh_save;
   if (s.autosnap) {
     $("snapevery").value = s.autosnap.every;
     $("snapkeep").value = s.autosnap.keep;

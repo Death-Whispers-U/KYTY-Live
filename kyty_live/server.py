@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import config as settings
+from .freshsave import FreshSave
 from .settings import Settings
 from .classifier import Classifier, diff_runs, parse_hot_line, parse_shader_line, strip_ansi
 from .hot import HOT_OUT, HOT_SRC, HotCompiler
@@ -159,6 +160,11 @@ class Session:
         self.autosnap_settings = {"every": 5, "keep": 12}
         self.autosnap = None
         self.settings = Settings(ROOT / "settings.json")  # choices every run follows
+        # Runs with a fresh save park the player's save here and put it back afterwards.
+        self.fresh_save = FreshSave(Path(cfg["install_dir"]) / "_SaveData")
+        restored = self.fresh_save.recover(RUNS)
+        if restored:
+            print(f"Put back saves parked by an interrupted run: {', '.join(restored)}", flush=True)
         self.profile = None  # {"sampler", "thread", "run", "started"} while a profile is recording
         self.testing = None
 
@@ -189,6 +195,7 @@ class Session:
                 "options": self.emulator_options(),
                 "displays": self.displays(),
                 "display": self.settings.get("display"),
+                "fresh_save": bool(self.settings.get("fresh_save")),
                 "always_args": self.cfg["emulator_args"],
                 "hot": {"enabled": self.cfg["hot_hle"], "auto": self.hot.auto, "last": self.hot.last,
                         "sources": [str(p) for p in self.hot.sources()], "folder": str(HOT_SRC),
@@ -205,7 +212,7 @@ class Session:
 
     # ----- running a game -----
 
-    def start(self, game, dev_features=True, extra_args=(), cores=None):
+    def start(self, game, dev_features=True, extra_args=(), cores=None, fresh_save=None):
         with self.lock:
             if self.phase in ("running", "building"):
                 raise RuntimeError(f"already {self.phase}")
@@ -247,8 +254,19 @@ class Session:
             self.shader_state = {"translated": {}, "status": {}}
             if self.cfg["shader_override"] and dev_features:
                 env["KYTY_SHADER_OVERRIDE"] = str(SHADERS)
-            self.proc = subprocess.Popen(args, cwd=self.cfg["install_dir"], stdout=subprocess.PIPE,
-                                         stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env)
+            if fresh_save is None:
+                fresh_save = bool(self.settings.get("fresh_save"))
+            if fresh_save:
+                # The game boots as if never played; the player's save comes back when it exits.
+                self.fresh_save.park(game["id"])
+                self.run["fresh_save"] = True
+            try:
+                self.proc = subprocess.Popen(args, cwd=self.cfg["install_dir"], stdout=subprocess.PIPE,
+                                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env)
+            except OSError:
+                if fresh_save:
+                    self.fresh_save.restore(game["id"], run_dir)
+                raise
             self.run["pid"] = self.proc.pid
             # Fewer CPU cores changes how the game's threads interleave: an experiment for races.
             mask = cores_mask(cores, os.cpu_count())
@@ -426,6 +444,14 @@ class Session:
         with self.lock:
             if self.proc is not proc:
                 return
+            if self.run.get("fresh_save"):
+                try:
+                    self.fresh_save.restore(self.run["game"]["id"], RUNS / self.run["id"])
+                    self.hub.publish("notice", {"text": f"Your save of {self.run['game']['title']} is back; "
+                                                        "the run's own save is kept with the run"})
+                except OSError as e:
+                    self.hub.publish("notice", {"text": f"Could not put the save back yet ({e}); "
+                                                        "it is restored the next time Kyty Live starts"})
             code = rc & 0xFFFFFFFF
             self.run["end"] = time.time()
             self.run["exit_code"] = code
@@ -1219,8 +1245,9 @@ def make_handler(session, hub):
                 b = self._body()
                 if u.path == "/api/run":
                     cores = int(b["cores"]) if b.get("cores") not in (None, "") else None
+                    fresh = None if b.get("fresh_save") is None else bool(b.get("fresh_save"))
                     self._json(session.start(self._game(b["game"]), extra_args=session.option_args(b.get("options")) + session.display_args(b.get("display"))
-                                             + parse_flags(b.get("flags") or ""), cores=cores))
+                                             + parse_flags(b.get("flags") or ""), cores=cores, fresh_save=fresh))
                 elif u.path == "/api/stop":
                     self._json({"stopped": session.stop()})
                 elif u.path == "/api/rebuild":
@@ -1263,6 +1290,9 @@ def make_handler(session, hub):
                     self._json(session.start_profile(b.get("thread") or "Thread_Gpu"))
                 elif u.path == "/api/profile/stop":
                     self._json(session.stop_profile())
+                elif u.path == "/api/fresh-save":
+                    session.settings.set("fresh_save", True if b.get("on") else None)
+                    self._json({"fresh_save": bool(session.settings.get("fresh_save"))})
                 elif u.path == "/api/display":
                     self._json(session.set_display(b.get("display")))
                 elif u.path == "/api/autosnap":
