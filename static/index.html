@@ -1220,7 +1220,7 @@ async function openRun(id) {
       <span>ran ${m.end ? Math.round(m.end - m.start) : "?"}s</span><span>first frame ${m.first_frame_s ?? "–"}${m.first_frame_s != null ? "s" : ""}</span>
       <span>frame ${m.max_frame || 0}</span><span>fps ${m.last_fps != null ? Math.round(m.last_fps) : "–"}</span>
       ${flags ? `<span>flags <code>${esc(flags)}</code></span>` : "<span>no extra flags</span>"}${m.sweep ? `<span>part of sweep ${esc(when(m.sweep))}</span>` : ""}
-      ${m.facts && m.facts.gpu ? `<span>${esc(m.facts.gpu)}</span>` : ""}${m.facts && m.facts.source_build ? `<span>emulator ${esc(m.facts.source_build)}</span>` : ""}${m.facts && m.facts.device_fault ? `<span>GPU fault reports ${esc(m.facts.device_fault)}</span>` : ""}${m.facts && m.facts.gpu_checkpoints ? `<span>GPU checkpoints ${esc(m.facts.gpu_checkpoints)}</span>` : ""}
+      ${m.facts && m.facts.gpu ? `<span>${esc(m.facts.gpu)}</span>` : ""}${m.facts && m.facts.source_build ? `<span>emulator ${esc(m.facts.source_build)}</span>` : ""}${m.facts && m.facts.device_fault ? `<span>GPU fault reports ${esc(m.facts.device_fault)}</span>` : ""}${m.cores ? `<span>limited to ${m.cores} CPU cores</span>` : ""}${m.facts && m.facts.gpu_checkpoints ? `<span>GPU checkpoints ${esc(m.facts.gpu_checkpoints)}</span>` : ""}
       <a href="/api/files/${esc(m.id)}/output.log">full log (${mb} MB)</a></div>
     ${m.crash ? crashHtml(m.crash) : ""}
     <div class="logsearch"><form data-search="${esc(m.id)}"><input name="q" placeholder="Search this run's full log (2+ characters)" aria-label="Search the run log">

@@ -54,3 +54,22 @@ class PngTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+from kyty_live.window import cores_mask
+
+
+class CoresMaskTest(unittest.TestCase):
+    def test_first_n_logical_cores(self):
+        self.assertEqual(cores_mask(2, 16), 0b11)
+        self.assertEqual(cores_mask(4, 16), 0b1111)
+
+    def test_all_cores_means_no_restriction(self):
+        self.assertIsNone(cores_mask(16, 16))
+        self.assertIsNone(cores_mask(None, 16))
+
+    def test_rejects_impossible_counts(self):
+        with self.assertRaises(ValueError):
+            cores_mask(0, 16)
+        with self.assertRaises(ValueError):
+            cores_mask(17, 16)

@@ -30,7 +30,7 @@ from .diagnostics import (CrashCollector, RunFacts, discover_test_suites, exe_re
                           module_for, parse_suite_output, suite_sources, symbolize)
 from .loopcap import cap_loops, find_loops
 from .snapshots import AutoSnapshots, snapshot_name
-from .window import KEYS, capture_png, find_window, parse_macro, parse_title, send_key
+from .window import KEYS, capture_png, cores_mask, find_window, limit_cores, parse_macro, parse_title, send_key
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "static"
@@ -205,7 +205,7 @@ class Session:
 
     # ----- running a game -----
 
-    def start(self, game, dev_features=True, extra_args=()):
+    def start(self, game, dev_features=True, extra_args=(), cores=None):
         with self.lock:
             if self.phase in ("running", "building"):
                 raise RuntimeError(f"already {self.phase}")
@@ -250,6 +250,12 @@ class Session:
             self.proc = subprocess.Popen(args, cwd=self.cfg["install_dir"], stdout=subprocess.PIPE,
                                          stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env)
             self.run["pid"] = self.proc.pid
+            # Fewer CPU cores changes how the game's threads interleave: an experiment for races.
+            mask = cores_mask(cores, os.cpu_count())
+            if mask is not None:
+                self.run["cores"] = cores
+                if not limit_cores(self.proc.pid, mask):
+                    self.hub.publish("notice", {"text": f"Could not limit the game to {cores} cores"})
             self.compile_meter = CompileMeter()
             self.crash = CrashCollector()
             self.facts = RunFacts()
@@ -1212,8 +1218,9 @@ def make_handler(session, hub):
             try:
                 b = self._body()
                 if u.path == "/api/run":
+                    cores = int(b["cores"]) if b.get("cores") not in (None, "") else None
                     self._json(session.start(self._game(b["game"]), extra_args=session.option_args(b.get("options")) + session.display_args(b.get("display"))
-                                             + parse_flags(b.get("flags") or "")))
+                                             + parse_flags(b.get("flags") or ""), cores=cores))
                 elif u.path == "/api/stop":
                     self._json({"stopped": session.stop()})
                 elif u.path == "/api/rebuild":

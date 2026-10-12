@@ -56,6 +56,15 @@ def parse_macro(text):
     return steps
 
 
+def cores_mask(cores, total):
+    """Affinity mask for the first `cores` logical cores; None for no restriction."""
+    if cores is None or cores == total:
+        return None
+    if not 1 <= cores <= total:
+        raise ValueError(f"cores must be between 1 and {total}")
+    return (1 << cores) - 1
+
+
 def encode_png(bgra, width, height):
     """Encodes 32-bit BGRA pixels in bottom-up row order (as GDI returns them) as an RGB PNG."""
     import struct
@@ -175,6 +184,19 @@ if sys.platform == "win32":
                     ("biSizeImage", wintypes.DWORD), ("biXPelsPerMeter", wintypes.LONG),
                     ("biYPelsPerMeter", wintypes.LONG), ("biClrUsed", wintypes.DWORD), ("biClrImportant", wintypes.DWORD)]
 
+    def limit_cores(pid, mask):
+        """Restricts a process (and every thread it creates) to the cores in `mask`."""
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.OpenProcess.restype = wintypes.HANDLE
+        k32.SetProcessAffinityMask.argtypes = [wintypes.HANDLE, ctypes.c_size_t]
+        handle = k32.OpenProcess(0x0200 | 0x0400, False, pid)  # SET_INFORMATION | QUERY_INFORMATION
+        if not handle:
+            return False
+        try:
+            return bool(k32.SetProcessAffinityMask(handle, mask))
+        finally:
+            k32.CloseHandle(handle)
+
     def capture_png(hwnd):
         """Returns the window's client area as PNG bytes, or None. Works while it is covered."""
         rect = wintypes.RECT()
@@ -211,3 +233,6 @@ else:
 
     def capture_png(hwnd):
         return None
+
+    def limit_cores(pid, mask):
+        return False
