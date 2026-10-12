@@ -876,9 +876,10 @@ $("bneck").addEventListener("click", () => showTab("perf"));
 window.addEventListener("resize", () => { if (!$("perfview").hidden) { drawTimeline(); drawFrames(); } });
 
 // ----- monitor -----
+// The server keeps the choice (settings.json), so every run follows it, whoever starts it.
 let displayChoice = "";
-try { displayChoice = localStorage.getItem("kytylive.display") || ""; } catch {}
-function renderDisplays(displays) {
+function renderDisplays(displays, chosen) {
+  displayChoice = chosen == null ? "" : String(chosen);
   const sel = $("display");
   sel.hidden = !displays || !displays.length;
   if (sel.hidden) return;
@@ -887,11 +888,10 @@ function renderDisplays(displays) {
     `<option value="${d.index}">Monitor ${d.index}: ${esc(d.name)} ${d.width}×${d.height}${d.primary ? " (primary)" : ""}</option>`).join("");
   sel.value = displayChoice;
 }
-$("display").addEventListener("change", (e) => {
-  displayChoice = e.target.value;
-  try { localStorage.setItem("kytylive.display", displayChoice); } catch {}
-});
-const selectedDisplay = () => ($("display").hidden ? "" : displayChoice);
+$("display").addEventListener("change", (e) => act(async () => {
+  const r = await api("/api/display", { display: e.target.value });
+  displayChoice = r.display == null ? "" : String(r.display);
+}));
 
 // ----- emulator options -----
 let emuOptions = [];
@@ -983,7 +983,7 @@ $("sweep").addEventListener("click", () => act(async () => {
     await api("/api/sweep/stop", {});
     return;
   }
-  sweep = await api("/api/sweep", { seconds: Number($("sweepsecs").value) || 60, flags: $("sweepflags").value.trim(), options: selectedOptions(), display: selectedDisplay(),
+  sweep = await api("/api/sweep", { seconds: Number($("sweepsecs").value) || 60, flags: $("sweepflags").value.trim(), options: selectedOptions(),
     games: [...sweepGames].filter((id) => state.games.some((g) => g.id === id)), repeats: Number($("sweeprepeats").value) || 1 });
   showTab("sweep");
   renderSweep();
@@ -1324,7 +1324,7 @@ $("run").addEventListener("click", () => act(async () => {
   const g = currentGame();
   if (!g) throw new Error("Pick a game first.");
   await api("/api/macro", { game: g.id, text: $("macro").value });
-  await api("/api/run", { game: g.id, options: selectedOptions(), display: selectedDisplay(), flags: $("sweepflags").value.trim() });
+  await api("/api/run", { game: g.id, options: selectedOptions(), flags: $("sweepflags").value.trim() });
 }));
 $("stop").addEventListener("click", () => act(() => api("/api/stop", {})));
 function showSnapshot(r) {
@@ -1347,7 +1347,7 @@ $("rebuild").addEventListener("click", () => act(async () => {
   showTab("build");
   const g = currentGame();
   if (g) await api("/api/macro", { game: g.id, text: $("macro").value });
-  await api("/api/rebuild", { rerun: !!g, game: g ? g.id : null, options: selectedOptions(), display: selectedDisplay(), flags: $("sweepflags").value.trim() });
+  await api("/api/rebuild", { rerun: !!g, game: g ? g.id : null, options: selectedOptions(), flags: $("sweepflags").value.trim() });
 }));
 
 function renderPad() {
@@ -1627,7 +1627,7 @@ function connect() {
   const s = await api("/api/state");
   state.keys = s.keys;
   emuOptions = s.options || [];
-  renderDisplays(s.displays || []);
+  renderDisplays(s.displays || [], s.display);
   if (s.autosnap) {
     $("snapevery").value = s.autosnap.every;
     $("snapkeep").value = s.autosnap.keep;

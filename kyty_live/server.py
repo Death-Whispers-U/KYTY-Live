@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import config as settings
+from .settings import Settings
 from .classifier import Classifier, diff_runs, parse_hot_line, parse_shader_line, strip_ansi
 from .hot import HOT_OUT, HOT_SRC, HotCompiler
 from .history import compare, list_sweeps, load_sweep, report_markdown
@@ -157,6 +158,7 @@ class Session:
         self.sweep = None
         self.autosnap_settings = {"every": 5, "keep": 12}
         self.autosnap = None
+        self.settings = Settings(ROOT / "settings.json")  # choices every run follows
         self.profile = None  # {"sampler", "thread", "run", "started"} while a profile is recording
         self.testing = None
 
@@ -186,6 +188,7 @@ class Session:
                 "frames": (getattr(self, "frames", None) or [])[-120:] if self.phase == "running" else [],
                 "options": self.emulator_options(),
                 "displays": self.displays(),
+                "display": self.settings.get("display"),
                 "always_args": self.cfg["emulator_args"],
                 "hot": {"enabled": self.cfg["hot_hle"], "auto": self.hot.auto, "last": self.hot.last,
                         "sources": [str(p) for p in self.hot.sources()], "folder": str(HOT_SRC),
@@ -477,8 +480,24 @@ class Session:
             self._options = [dict(o, always=o["flag"] in always) for o in read_options(exe)] if exe.exists() else []
         return self._options
 
-    def display_args(self, index):
-        return display_args(self.displays(), None if index in (None, "") else int(index))
+    def display_args(self, index=None):
+        """--display for a run: the monitor the request names, else the one chosen in the page."""
+        if index not in (None, ""):
+            return display_args(self.displays(), int(index))
+        saved = self.settings.get("display")
+        if saved is None:
+            return []
+        try:
+            return display_args(self.displays(), saved)
+        except ValueError:
+            self.hub.publish("notice", {"text": f"Monitor {saved} is not connected; using the primary monitor"})
+            return []
+
+    def set_display(self, index):
+        if index not in (None, ""):
+            display_args(self.displays(), int(index))  # validates
+        self.settings.set("display", None if index in (None, "") else int(index))
+        return {"display": self.settings.get("display")}
 
     def displays(self, refresh=False):
         """Displays the installed emulator can open on (--list-displays), cached like the options."""
@@ -1237,6 +1256,8 @@ def make_handler(session, hub):
                     self._json(session.start_profile(b.get("thread") or "Thread_Gpu"))
                 elif u.path == "/api/profile/stop":
                     self._json(session.stop_profile())
+                elif u.path == "/api/display":
+                    self._json(session.set_display(b.get("display")))
                 elif u.path == "/api/autosnap":
                     every, keep = float(b.get("every", 5)), int(b.get("keep", 12))
                     self._json(session.set_autosnap(every, keep))

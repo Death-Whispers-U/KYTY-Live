@@ -10,8 +10,9 @@
 # Symbol lists from third parties and the NID table generated from them (tools/build_nids.py).
 /data/
 
-# Local settings (paths on this machine).
+# Local settings (paths on this machine) and choices made in the page.
 /config.json
+/settings.json
 
 # Per-game input macros.
 /macros/*.txt
