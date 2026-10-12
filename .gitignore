@@ -1,0 +1,23 @@
+# Run output: game logs, screenshots and profiles (game-derived, large, personal).
+/runs/
+/sweeps/
+/tests_runs/
+/ab/
+
+# Shader dumps and overrides are translated from the games' own shader code.
+/shaders/
+
+# Symbol lists from third parties and the NID table generated from them (tools/build_nids.py).
+/data/
+
+# Local settings (paths on this machine).
+/config.json
+
+# Per-game input macros.
+/macros/*.txt
+
+# Build output of the hot-patch DLL.
+/hot/build/
+
+__pycache__/
+*.pyc

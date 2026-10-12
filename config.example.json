@@ -1,0 +1,10 @@
+{
+  "port": 8790,
+  "src_dir": "../KytyPS5",
+  "build_dir": "../KytyPS5/_Build/kyty-live",
+  "game_dirs": ["D:/Games/PS5"],
+  "emulator_args": ["--no-splash", "--printf-direction", "Console"],
+  "stall_seconds": 10,
+  "hot_hle": true,
+  "shader_override": true
+}

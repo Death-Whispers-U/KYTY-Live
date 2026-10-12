@@ -1,0 +1,1651 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kyty Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --ground: #eef0f4;
+  --panel: #ffffff;
+  --sunk: #f5f6f9;
+  --line: #d9dde5;
+  --ink: #171a21;
+  --ink-2: #4a5160;
+  --ink-3: #7b8394;
+  --accent: #2456c8;
+  --accent-ink: #ffffff;
+  --crit: #c92a3b;
+  --crit-bg: #fde8ea;
+  --err: #c2560a;
+  --err-bg: #fdeedd;
+  --warn: #8f6c00;
+  --warn-bg: #fbf3d4;
+  --info: #5d6577;
+  --info-bg: #eceef2;
+  --ok: #217a3a;
+  --ok-bg: #e2f4e6;
+  --sans: "IBM Plex Sans", system-ui, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #101319; --panel: #171b23; --sunk: #12151c; --line: #272d39;
+    --ink: #e4e7ee; --ink-2: #a9b0c0; --ink-3: #727b8e;
+    --accent: #6b93f0; --accent-ink: #0d1220;
+    --crit: #ff6b7a; --crit-bg: #3a1a20; --err: #ff9a52; --err-bg: #3a2414;
+    --warn: #e7c14f; --warn-bg: #332b10; --info: #9aa3b5; --info-bg: #222733;
+    --ok: #5fd07c; --ok-bg: #16301e;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #101319; --panel: #171b23; --sunk: #12151c; --line: #272d39;
+  --ink: #e4e7ee; --ink-2: #a9b0c0; --ink-3: #727b8e;
+  --accent: #6b93f0; --accent-ink: #0d1220;
+  --crit: #ff6b7a; --crit-bg: #3a1a20; --err: #ff9a52; --err-bg: #3a2414;
+  --warn: #e7c14f; --warn-bg: #332b10; --info: #9aa3b5; --info-bg: #222733;
+  --ok: #5fd07c; --ok-bg: #16301e;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--ground); color: var(--ink); font: 14px/1.45 var(--sans); }
+button, select, textarea, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: grid; grid-template-rows: auto auto 1fr; height: 100vh; }
+
+/* command bar */
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 16px;
+  background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { font: 600 15px/1 var(--cond); letter-spacing: .02em; margin-right: 4px; }
+.brand span { color: var(--ink-3); font-weight: 500; }
+select { min-width: 0; max-width: 340px; padding: 7px 10px; background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; }
+.btn { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--sunk); cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+.readouts { display: flex; gap: 18px; align-items: baseline; }
+.readout { display: grid; gap: 1px; }
+.readout b { font: 500 18px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.readout small { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); }
+
+.phase { font: 600 12px/1 var(--cond); text-transform: uppercase; letter-spacing: .1em; padding: 6px 10px; border-radius: 999px;
+  background: var(--info-bg); color: var(--info); }
+.phase[data-phase="running"] { background: var(--ok-bg); color: var(--ok); }
+.phase[data-phase="building"] { background: var(--warn-bg); color: var(--warn); }
+.phase[data-phase="build_failed"], .phase[data-phase="crashed"] { background: var(--crit-bg); color: var(--crit); }
+
+/* verdict strip */
+.verdict { display: none; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); gap: 8px 18px; flex-wrap: wrap; align-items: baseline; }
+.verdict.show { display: flex; }
+.verdict .head { font-weight: 600; }
+.verdict .crit { color: var(--crit); }
+.verdict .good { color: var(--ok); }
+.verdict details summary { cursor: pointer; color: var(--ink-2); }
+.verdict ul { margin: 6px 0 0; padding-left: 18px; font-family: var(--mono); font-size: 12px; }
+
+/* main grid */
+.main { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(360px, 1.5fr) 300px; gap: 1px; background: var(--line); min-height: 0; }
+.col { background: var(--panel); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.col-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.col-head h2 { margin: 0; font: 600 13px/1 var(--cond); text-transform: uppercase; letter-spacing: .09em; color: var(--ink-2); }
+.scroll { overflow: auto; flex: 1; min-height: 0; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.chip { font: 500 12px/1 var(--sans); padding: 5px 8px; border-radius: 999px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.chip .n { font-family: var(--mono); margin-left: 4px; }
+
+/* issues */
+.issue { display: grid; grid-template-columns: 4px 1fr auto; gap: 0 10px; padding: 9px 14px 9px 0; border-bottom: 1px solid var(--line); }
+.issue .stripe { border-radius: 0 2px 2px 0; background: var(--info); }
+.issue[data-sev="critical"] .stripe { background: var(--crit); }
+.issue[data-sev="error"] .stripe { background: var(--err); }
+.issue[data-sev="warning"] .stripe { background: var(--warn); }
+.issue .body { min-width: 0; }
+.issue .title { font-weight: 500; overflow-wrap: anywhere; }
+.issue .meta { color: var(--ink-3); font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.issue .meta code { font-family: var(--mono); font-size: 11.5px; }
+.issue .count { font: 500 12px/1.6 var(--mono); color: var(--ink-2); text-align: right; }
+.tag { font: 600 10.5px/1 var(--cond); text-transform: uppercase; letter-spacing: .08em; padding: 3px 6px; border-radius: 4px; }
+.tag.new { background: var(--accent); color: var(--accent-ink); }
+.tag.hint { background: var(--info-bg); color: var(--info); }
+.kind { font: 500 11px/1 var(--mono); color: var(--ink-3); }
+.empty { padding: 28px 16px; color: var(--ink-3); text-align: center; }
+
+/* log */
+.tabs { display: flex; gap: 2px; }
+.tab { padding: 6px 10px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; font: 600 13px/1 var(--cond); text-transform: uppercase; letter-spacing: .09em; color: var(--ink-3); }
+.tab[aria-selected="true"] { background: var(--sunk); color: var(--ink); }
+.log { font: 12px/1.5 var(--mono); padding: 8px 0; margin: 0; }
+.log div { padding: 0 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.log div .t { color: var(--ink-3); margin-right: 8px; font-variant-numeric: tabular-nums; }
+.log div.dim { color: var(--ink-3); font-style: italic; }
+.log div.hit { background: var(--crit-bg); }
+.log div.err { color: var(--crit); }
+.log div.input { color: var(--accent); }
+.progress { height: 3px; background: var(--sunk); }
+.progress i { display: block; height: 100%; width: 0; background: var(--warn); transition: width .3s; }
+.log-tools { display: flex; gap: 10px; align-items: center; margin-left: auto; color: var(--ink-3); font-size: 12px; }
+.log-tools label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
+.log-tools input[type=search] { padding: 5px 8px; border: 1px solid var(--line); background: var(--sunk); border-radius: 6px; width: 150px; }
+
+/* side */
+.section { padding: 12px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.section h3 { margin: 0; font: 600 12px/1 var(--cond); text-transform: uppercase; letter-spacing: .09em; color: var(--ink-2); }
+.pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.key { padding: 7px 4px; border: 1px solid var(--line); background: var(--sunk); border-radius: 6px; cursor: pointer; display: grid; gap: 2px; justify-items: center; }
+.key b { font: 500 13px/1 var(--mono); }
+.key small { font-size: 10.5px; color: var(--ink-3); }
+.key:disabled { opacity: .45; cursor: default; }
+textarea { width: 100%; min-height: 120px; resize: vertical; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--sunk); font: 12px/1.5 var(--mono); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.note { font-size: 12px; color: var(--ink-3); }
+.note.bad { color: var(--crit); }
+.runs { display: grid; }
+.run { padding: 8px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 3px; font-size: 12.5px; }
+.run .l1 { display: flex; justify-content: space-between; gap: 8px; }
+.run .l1 b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run .l2 { color: var(--ink-3); display: flex; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: 11.5px; }
+.tag.patched { background: var(--ok-bg); color: var(--ok); }
+.hotstate { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.hotstate b { font: 500 13px/1.3 var(--mono); }
+.fnlist { display: flex; flex-wrap: wrap; gap: 5px; }
+.fn { font: 500 11.5px/1 var(--mono); padding: 4px 7px; border-radius: 4px; background: var(--ok-bg); color: var(--ok); overflow-wrap: anywhere; }
+.diag { font: 12px/1.45 var(--mono); display: grid; gap: 4px; }
+.diag div { color: var(--crit); overflow-wrap: anywhere; }
+.diag div.warning { color: var(--warn); }
+.path { font: 11.5px/1.4 var(--mono); color: var(--ink-3); overflow-wrap: anywhere; }
+.shaderfind { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); background: var(--sunk); border-radius: 6px; font: 12px/1.3 var(--mono); }
+.shaders { display: grid; gap: 1px; max-height: 280px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--line); }
+.shaders:empty { display: none; }
+.shader { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 6px 8px; background: var(--panel); }
+.shader code { font: 12px/1.3 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shader code b { font-weight: 500; color: var(--ink-3); margin-right: 4px; text-transform: uppercase; }
+.shader .acts { display: flex; gap: 4px; align-items: center; }
+.loopcap { grid-column: 1 / -1; display: grid; gap: 6px; padding: 6px 0 2px; font-size: 12.5px; }
+.loopcap .lrows { display: grid; gap: 2px; }
+.loopcap label { display: flex; gap: 8px; align-items: center; font: 12px/1.4 var(--mono); }
+.loopcap label.off { color: var(--ink-3); }
+.loopcap .lctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.loopcap input[type=number] { width: 90px; padding: 3px 6px; border: 1px solid var(--line); background: var(--sunk); color: var(--ink); border-radius: 5px; font: 12px/1.2 var(--mono); }
+.shader .acts button { font: 500 11.5px/1 var(--sans); padding: 4px 7px; border: 1px solid var(--line); border-radius: 5px; background: var(--sunk); cursor: pointer; }
+.shader .err { grid-column: 1 / -1; color: var(--crit); font: 11.5px/1.35 var(--mono); overflow-wrap: anywhere; }
+.pill { font: 600 10.5px/1 var(--cond); text-transform: uppercase; letter-spacing: .07em; padding: 3px 6px; border-radius: 4px; }
+.pill.applied { background: var(--ok-bg); color: var(--ok); }
+.pill.rejected { background: var(--crit-bg); color: var(--crit); }
+.pill.pending { background: var(--warn-bg); color: var(--warn); }
+.bar { position: relative; z-index: 5; }
+.optsmenu { position: relative; }
+.optsmenu > summary { list-style: none; display: inline-flex; gap: 6px; align-items: center; }
+.optsmenu > summary::-webkit-details-marker { display: none; }
+.optsmenu > summary::after { content: "▾"; font-size: 12px; line-height: 1; color: var(--ink-3); }
+.optsmenu[open] > summary::after { content: "▴"; }
+.optshead { font: 600 11px/1 var(--cond); text-transform: uppercase; letter-spacing: .09em; color: var(--ink-3); padding: 4px 2px 2px; }
+.optsmenu > summary .count { font: 500 11px/1 var(--mono); padding: 3px 6px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); }
+.optspanel { position: absolute; top: calc(100% + 6px); left: 0; width: min(440px, calc(100vw - 32px)); max-height: min(70vh, 640px); overflow: auto;
+  padding: 10px; display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 32px rgb(0 0 0 / .28); z-index: 20; }
+.opts { display: grid; gap: 2px; }
+.autosnap { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 13px; padding: 4px 2px; }
+.autosnap input { width: 60px; padding: 4px 6px; border: 1px solid var(--line); background: var(--sunk); color: var(--ink); border-radius: 6px; font: 13px/1.2 var(--mono); }
+.opt { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: start; padding: 4px 2px; border-radius: 5px; cursor: pointer; }
+.opt:hover { background: var(--sunk); }
+.opt input { margin: 2px 0 0; }
+.opt code { font: 500 12px/1.35 var(--mono); }
+.opt small { grid-column: 2; font-size: 11.5px; line-height: 1.35; color: var(--ink-3); }
+.opt.locked { cursor: default; opacity: .6; }
+.opt.on code { color: var(--accent); }
+.sweepctl { display: inline-flex; gap: 6px; align-items: center; }
+.sweepctl input { width: 64px; padding: 6px 8px; border: 1px solid var(--line); background: var(--sunk); border-radius: 6px; font: 13px/1.2 var(--mono); }
+.sweepctl input.sweepflags { width: 130px; font-size: 12px; }
+.sweepview { padding: 10px 14px; display: grid; gap: 10px; }
+.sweepview[hidden] { display: none; }
+:root { --k-cpu: var(--crit); --k-gpu: var(--accent); --k-compile: var(--err); --k-waiting: var(--ink-3); --k-target: var(--ok); }
+[data-kind="cpu"] { --k: var(--k-cpu); } [data-kind="gpu"] { --k: var(--k-gpu); } [data-kind="compile"] { --k: var(--k-compile); }
+[data-kind="waiting"] { --k: var(--k-waiting); } [data-kind="target"] { --k: var(--k-target); } [data-kind="none"] { --k: var(--line); }
+.bneck { font: 600 12px/1 var(--cond); letter-spacing: .04em; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--k); color: var(--k); background: transparent; cursor: pointer; max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.perfview { padding: 12px 14px; display: grid; gap: 12px; }
+.perfview[hidden] { display: none; }
+.pverdict { font: 600 16px/1.3 var(--cond); padding: 10px 12px; border-left: 4px solid var(--k); background: var(--sunk); border-radius: 0 6px 6px 0; }
+.ptimeline { display: grid; gap: 6px; }
+.ptimeline canvas { width: 100%; height: 90px; display: block; background: var(--sunk); border-radius: 6px; }
+.pframes { display: grid; gap: 6px; }
+.pframes .pfhead { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.pframes canvas { width: 100%; height: 120px; display: block; background: var(--sunk); border-radius: 6px; }
+.pfstats { display: flex; gap: 6px 16px; flex-wrap: wrap; font: 12px/1.4 var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.pfstats b { color: var(--ink); font-weight: 600; }
+.pfstats .hitch b { color: var(--crit); }
+.pprofile { display: grid; gap: 8px; }
+.pprofile .pphead { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.pptables { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+.pptable { overflow-x: auto; }
+.pptable table { width: 100%; border-collapse: collapse; font: 12px/1.35 var(--mono); font-variant-numeric: tabular-nums; }
+.pptable th { text-align: left; font: 600 11px/1 var(--cond); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); padding: 4px 6px; }
+.pptable td { padding: 3px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+.pptable td.n { text-align: right; white-space: nowrap; color: var(--ink-2); }
+.pptable td.f { word-break: break-all; }
+.pptable td.f .bar { display: block; height: 3px; margin-top: 3px; background: var(--accent); border-radius: 2px; }
+.plegend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-2); }
+.plegend span { display: inline-flex; gap: 5px; align-items: center; }
+.plegend span[data-kind]::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--k); }
+.plegend .fpsline::before { content: ""; width: 14px; height: 2px; background: var(--ink); }
+.pshare { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--sunk); font: 600 11px/22px var(--cond); }
+.pshare div { background: var(--k); color: var(--panel); padding: 0 6px; white-space: nowrap; overflow: hidden; }
+.pcols { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+.pcols h4 { margin: 0 0 6px; font: 600 12px/1.2 var(--cond); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
+.pcols h4 small { text-transform: none; letter-spacing: 0; font: 400 11px var(--sans); color: var(--ink-3); }
+.pcols section { display: grid; gap: 4px; align-content: start; }
+.bars { display: grid; gap: 4px; }
+.pbar { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 8px; align-items: center; font: 12px/1.2 var(--mono); }
+.pbar .track { position: relative; height: 18px; background: var(--sunk); border-radius: 4px; overflow: hidden; }
+.pbar .fill { position: absolute; inset: 0 auto 0 0; background: var(--k, var(--accent)); opacity: .85; }
+.pbar .label { position: absolute; left: 6px; top: 2px; right: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); mix-blend-mode: normal; }
+.pbar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.perfsum { display: grid; gap: 6px; }
+@media (max-width: 700px) { .pcols { grid-template-columns: 1fr; } }
+.crashcard { padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--crit-bg); display: grid; gap: 4px; }
+.crashcard[hidden] { display: none; }
+.crashcard b { color: var(--crit); }
+.crashinfo { display: grid; gap: 4px; font: 12px/1.5 var(--mono); }
+.crashinfo .frames { margin: 0; padding-left: 18px; }
+.crashinfo .frames li { overflow-wrap: anywhere; }
+.crashinfo .frames code { color: var(--ink-3); }
+.logsearch { display: grid; gap: 6px; }
+.logsearch form { display: flex; gap: 8px; }
+.logsearch input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; font: 12px/1.3 var(--mono); }
+.logsearch pre { margin: 0; max-height: 320px; overflow: auto; font: 11.5px/1.45 var(--mono); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.logsearch pre span { color: var(--ink-3); }
+.suite { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; padding: 7px 10px; background: var(--panel); }
+.suite code { font: 500 12.5px/1.3 var(--mono); }
+.suite select { max-width: 280px; padding: 3px 6px; font: 11.5px var(--mono); background: var(--sunk); border: 1px solid var(--line); border-radius: 5px; }
+.tag.gpu { background: var(--warn-bg); color: var(--warn); margin-left: 6px; }
+.historyview { padding: 10px 14px; display: grid; gap: 14px; }
+.historyview[hidden], .hdetail[hidden] { display: none; }
+.hsec { display: grid; gap: 6px; }
+.hhead { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.hhead b { font: 600 13px/1.2 var(--cond); text-transform: uppercase; letter-spacing: .08em; }
+.hhead select { padding: 5px 8px; border: 1px solid var(--line); background: var(--sunk); border-radius: 6px; font-size: 12.5px; }
+.btn.small { padding: 4px 10px; font-size: 12.5px; }
+.hlist { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.hitem { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 10px; background: var(--panel); cursor: pointer; }
+.hitem:hover { background: var(--sunk); }
+.hitem.active { box-shadow: inset 3px 0 0 var(--accent); }
+.hitem .main { display: grid; gap: 2px; min-width: 0; }
+.hitem .main b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hitem .sub { font: 11.5px/1.4 var(--mono); color: var(--ink-3); display: flex; gap: 10px; flex-wrap: wrap; }
+.hitem .sub code { color: var(--accent); }
+.hdetail { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); }
+.hdetail .dhead { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.hdetail .dhead b { font-size: 15px; }
+.hdetail .dhead .spacer { flex: 1; }
+.facts { display: flex; gap: 8px 16px; flex-wrap: wrap; font: 12px/1.5 var(--mono); color: var(--ink-2); }
+.facts code { color: var(--accent); }
+.snaps { display: flex; gap: 8px; flex-wrap: wrap; }
+.snaps a { display: grid; gap: 2px; font: 11px/1 var(--mono); color: var(--ink-3); text-decoration: none; }
+.snaps img { width: 200px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); }
+.cmp { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.cmp th, .cmp td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cmp th { font: 600 11px/1.2 var(--cond); text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); }
+.cmp td small { display: block; color: var(--ink-3); font-size: 11.5px; }
+.cmpwrap { overflow-x: auto; }
+.pill.fixed { background: var(--ok-bg); color: var(--ok); }
+.pill.regressed { background: var(--crit-bg); color: var(--crit); }
+.pill.same, .pill.missing, .pill.new { background: var(--info-bg); color: var(--info); }
+.pill.incomplete { background: var(--warn-bg); color: var(--warn); }
+.up { color: var(--ok); } .down { color: var(--crit); }
+.hcrit { margin: 0; padding-left: 18px; font: 12px/1.5 var(--mono); }
+.hcrit li { overflow-wrap: anywhere; }
+.run { cursor: pointer; }
+.run:hover { background: var(--sunk); }
+.sweephead { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.sweephead b { font: 600 13px/1.2 var(--cond); text-transform: uppercase; letter-spacing: .08em; }
+.sweeprow { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.sweeprow.crashed { border-color: var(--crit); }
+.sweeprow img, .sweeprow .noimg { width: 120px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; background: var(--sunk); border: 1px solid var(--line); }
+.sweeprow .noimg { display: grid; place-items: center; font-size: 11px; color: var(--ink-3); }
+.sweeprow .top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.sweeprow .top b { font-weight: 600; }
+.sweeprow .nums { font: 12px/1.5 var(--mono); color: var(--ink-2); display: flex; gap: 12px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.sweeprow ul { margin: 4px 0 0; padding-left: 16px; font: 12px/1.45 var(--mono); color: var(--ink-2); }
+.sweeprow ul li { overflow-wrap: anywhere; }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.bad { background: var(--crit-bg); color: var(--crit); }
+.pill.run { background: var(--warn-bg); color: var(--warn); }
+@media (max-width: 600px) { .sweeprow { grid-template-columns: 1fr; } .sweeprow img, .sweeprow .noimg { width: 100%; } }
+.sev-c { color: var(--crit); } .sev-e { color: var(--err); } .sev-w { color: var(--warn); }
+
+@media (max-width: 1100px) {
+  .app { height: auto; min-height: 100vh; }
+  .main { grid-template-columns: 1fr; }
+  .col .scroll { max-height: 60vh; }
+}
+@media (max-width: 600px) {
+  .bar { padding: 10px 16px; }
+  select { max-width: 100%; flex: 1 1 100%; }
+  .readouts { gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .progress i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">Kyty Live <span id="commit"></span></div>
+    <select id="game" aria-label="Game"></select>
+    <button class="btn primary" id="run">Run</button>
+    <button class="btn" id="stop" disabled>Stop</button>
+    <button class="btn" id="snap" disabled title="Save a picture of the game window to this run's folder">Snapshot</button>
+    <button class="btn" id="rebuild" title="Stop the game, rebuild the emulator, install it, and run the same game again">Rebuild &amp; rerun</button>
+    <select id="display" aria-label="Monitor the game opens on" title="Monitor the game opens on (Run, Rebuild &amp; rerun and Sweep)" hidden></select>
+    <details class="optsmenu" id="optsmenu">
+      <summary class="btn" id="optssummary">Options</summary>
+      <div class="optspanel" role="group" aria-label="Emulator options">
+        <div class="note">Used by Run, Rebuild &amp; rerun and Sweep. Read from this build's <code>--help</code>.</div>
+        <div class="opts" id="opts"></div>
+        <div class="optshead">Auto snapshots</div>
+        <div class="autosnap">
+          <label>Every <input type="number" id="snapevery" min="0" max="600" step="1" value="5" aria-label="Seconds between automatic snapshots"> s</label>
+          <label>keep the last <input type="number" id="snapkeep" min="1" max="200" step="1" value="12" aria-label="Automatic snapshots to keep per run"></label>
+        </div>
+        <div class="note">Pictures of the game window during every run, so the screen before a failure is on record. 0 turns them off. A fatal error or lost GPU device also takes one at once.</div>
+      </div>
+    </details>
+    <span class="sweepctl">
+      <input type="number" id="sweepsecs" min="10" max="600" step="10" value="60" aria-label="Seconds per game">
+      <input type="text" id="sweepflags" class="sweepflags" placeholder="extra flags" aria-label="Extra emulator flags" title="Extra emulator flags for Run, Rebuild &amp; rerun and Sweep, e.g. --trace-shader cs_657ad04626bf9d55" spellcheck="false">
+      <details class="optsmenu" id="sweepgames">
+        <summary class="btn" id="sweepgamessummary">All games</summary>
+        <div class="optspanel" role="group" aria-label="Games to sweep">
+          <div class="note">Sweep only these games. None ticked means all.</div>
+          <div class="opts" id="sweepgamelist"></div>
+          <label class="opt"><span></span><span class="note">Runs per game <input type="number" id="sweeprepeats" min="1" max="20" value="1" style="width:56px"></span></label>
+        </div>
+      </details>
+      <button class="btn" id="sweep" title="Run every game for this many seconds and record what fails">Sweep all</button>
+    </span>
+    <span class="phase" id="phase" data-phase="idle">Idle</span>
+    <div class="spacer"></div>
+    <button class="bneck" id="bneck" data-kind="none" hidden title="What limited the last second. Click for details.">–</button>
+    <div class="readouts" aria-live="polite">
+      <div class="readout"><b id="frame">–</b><small>Frame</small></div>
+      <div class="readout"><b id="fps">–</b><small>FPS</small></div>
+      <div class="readout"><b id="uptime">–</b><small>Time</small></div>
+    </div>
+  </header>
+
+  <div class="verdict" id="verdict" role="status"></div>
+  <div class="crashcard" id="crashcard" role="alert" hidden></div>
+
+  <main class="main">
+    <section class="col" aria-labelledby="issues-h">
+      <div class="col-head">
+        <h2 id="issues-h">Failures</h2>
+        <div class="chips" id="sevchips"></div>
+      </div>
+      <div class="scroll" id="issues"><div class="empty">Run a game to see what fails.</div></div>
+    </section>
+
+    <section class="col">
+      <div class="col-head">
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" aria-selected="true" data-tab="log">Output</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="build">Build</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="sweep">Sweep</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="perf">Perf</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="history">History</button>
+          <button class="tab" role="tab" aria-selected="false" data-tab="tests">Tests</button>
+        </div>
+        <div class="log-tools">
+          <input type="search" id="filter" placeholder="Filter output" aria-label="Filter output">
+          <label><input type="checkbox" id="follow" checked> Follow</label>
+        </div>
+      </div>
+      <div class="progress" id="progress" hidden><i></i></div>
+      <div class="scroll" id="logscroll"><div class="log" id="log"></div><div class="log" id="buildlog" hidden></div><div id="sweepview" class="sweepview" hidden><div class="empty">Sweep runs every game for a fixed time with hot patches and shader overrides off, then lists how each one did.</div></div><div id="perfview" class="perfview" hidden>
+        <div class="pverdict" id="pverdict" data-kind="none">Run a game to see what limits it.</div>
+        <div class="ptimeline"><canvas id="ptimeline" height="90" aria-label="What limited each second, with fps"></canvas>
+          <div class="plegend"><span data-kind="cpu">CPU-bound</span><span data-kind="gpu">GPU-bound</span><span data-kind="compile">Shader compiles</span><span data-kind="waiting">Nothing saturated</span><span data-kind="target">At target</span><span class="fpsline">fps</span></div></div>
+        <div class="pframes">
+          <div class="pfhead"><b>Frame times</b><span class="note">each bar is one presented frame, last 20 s; red bars took at least twice the pace around them</span></div>
+          <canvas id="pframes" height="120" aria-label="Time between presented frames, last 20 seconds"></canvas>
+          <div class="pfstats" id="pfstats"><span class="note">Waiting for frames…</span></div>
+        </div>
+        <div class="pprofile">
+          <div class="pphead"><b>Thread profile</b>
+            <button class="btn small" id="profilebtn" disabled title="Sample the emulator's GPU thread about 200 times a second">Profile Thread_Gpu</button>
+            <span class="note" id="profilestatus">Samples where Thread_Gpu spends its time, for the whole capture and only during hitches. Start it before the stutter, stop after.</span></div>
+          <div class="pptables" id="profiletables"></div>
+        </div>
+        <div class="pshare" id="pshare"></div>
+        <div class="pcols">
+          <section><h4>Threads <small>% of one core, last second</small></h4><div id="pthreads" class="bars"></div></section>
+          <section><h4>GPU engines <small>% busy</small></h4><div id="pgpu" class="bars"></div>
+            <h4>Shader compiles <small>this run</small></h4><div id="pcompile" class="note">–</div></section>
+        </div>
+      </div><div id="testsview" class="historyview" hidden>
+        <section class="hsec">
+          <div class="hhead"><b>Test suites</b><span class="note">Built from the emulator source, then run. GPU suites need the GPU free: no game running.</span>
+            <button class="btn small" id="runtests" disabled>Run selected</button></div>
+          <div id="teststatus" class="note"></div>
+          <div id="suitelist" class="hlist"></div>
+        </section>
+        <section id="testdetail" class="hdetail" hidden></section>
+        <section class="hsec">
+          <div class="hhead"><b>Past test runs</b></div>
+          <div id="testhistory" class="hlist"></div>
+        </section>
+      </div><div id="historyview" class="historyview" hidden>
+        <section class="hsec">
+          <div class="hhead"><b>Sweeps</b><span class="note">Tick two to compare them</span><button class="btn small" id="cmpbtn" disabled>Compare</button></div>
+          <div id="sweeplist" class="hlist"></div>
+        </section>
+        <section id="hdetail" class="hdetail" hidden></section>
+        <section class="hsec">
+          <div class="hhead"><b>Runs</b><select id="rungame" aria-label="Show runs of one game"><option value="">All games</option></select></div>
+          <div id="runlist" class="hlist"></div>
+        </section>
+      </div></div>
+    </section>
+
+    <aside class="col">
+      <div class="scroll">
+        <div class="section" id="hotsection">
+          <h3>Hot patch</h3>
+          <div class="hotstate"><b id="hotstatus">No patch loaded</b><span class="note" id="hotcompile"></span></div>
+          <div class="fnlist" id="hotfns"></div>
+          <div class="diag" id="hotdiag"></div>
+          <div class="row">
+            <button class="btn" id="hotbuild">Compile now</button>
+            <label class="note"><input type="checkbox" id="hotauto" checked> Compile on save</label>
+          </div>
+          <div class="path" id="hotpath"></div>
+        </div>
+        <div class="section" id="shadersection">
+          <h3>Shaders</h3>
+          <div class="row">
+            <input type="search" id="shaderfind" class="shaderfind" placeholder="Find by hash or stage" aria-label="Find shader">
+            <span class="note" id="shadercount"></span>
+          </div>
+          <div class="shaders" id="shaderlist"></div>
+          <div class="note">Edit copies the shader's SPIR-V assembly to the override folder and opens it. Save it and the game rebuilds pipelines that use it. Revert deletes the copy.</div>
+        </div>
+        <div class="section">
+          <h3>Controller</h3>
+          <div class="pad" id="pad"></div>
+          <div class="row">
+            <label class="note"><input type="checkbox" id="record"> Record presses into the macro</label>
+          </div>
+          <div class="note" id="padnote">Keys go to the emulator window. It takes focus for a moment.</div>
+        </div>
+        <div class="section">
+          <h3>Boot macro</h3>
+          <div class="note">Replayed on every run of this game. One step per line: seconds after launch, then a key.</div>
+          <textarea id="macro" spellcheck="false" placeholder="# Example&#10;20 Enter&#10;24 J"></textarea>
+          <div class="row"><button class="btn" id="savemacro">Save macro</button><span class="note" id="macronote"></span></div>
+        </div>
+        <div class="section"><h3>Recent runs</h3><div class="note">Click one to open it in History.</div></div>
+        <div class="runs" id="runs"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const SEV = ["critical", "error", "warning", "info"];
+const SEV_LABEL = { critical: "Critical", error: "Errors", warning: "Warnings", info: "Info" };
+const KIND_LABEL = {
+  fatal: "fatal error", host_exception: "crash", stub_called: "missing function called",
+  device_lost: "GPU device lost", vulkan_failure: "Vulkan call failed", device_fault: "GPU fault detail", gpu_checkpoint: "GPU progress", list_cycle: "linked-list cycle", shader_trace: "shader trace",
+  vulkan_validation: "Vulkan validation", stall: "stall", missing_import: "missing import",
+  unresolved_dlsym: "unresolved dlsym", missing_file: "missing file",
+};
+const PHASE_LABEL = { idle: "Idle", running: "Running", building: "Building", testing: "Testing", exited: "Exited", build_failed: "Build failed", crashed: "Crashed" };
+
+let state = { phase: "idle", issues: new Map(), prevSigs: null, games: [], keys: {}, patched: new Map(), hotGen: null };
+let sweep = null;
+let filters = new Set(["critical", "error", "warning"]);
+let logFilter = "";
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function setPhase(p) {
+  state.phase = p;
+  if (p !== "running") { state.patched.clear(); state.hotGen = null; }
+  if ($("hotstatus")) renderHot();
+  if ($("profilebtn")) $("profilebtn").disabled = !profiling && p !== "running";
+  const el = $("phase");
+  el.dataset.phase = p;
+  el.textContent = PHASE_LABEL[p] || p;
+  const sweeping = !!(sweep && sweep.running);
+  $("run").disabled = p === "running" || p === "building" || p === "testing" || sweeping;
+  $("sweep").disabled = p === "testing" || (p === "building" && !sweeping);
+  $("stop").disabled = p !== "running";
+  $("snap").disabled = p !== "running";
+  $("rebuild").disabled = p === "building" || p === "testing";
+  $("game").disabled = p === "running" || p === "building";
+  document.querySelectorAll(".key").forEach((k) => (k.disabled = p !== "running"));
+}
+
+function fmtTime(s) {
+  if (s == null) return "–";
+  const m = Math.floor(s / 60), r = Math.floor(s % 60);
+  return m ? `${m}:${String(r).padStart(2, "0")}` : `${r}s`;
+}
+
+function setStats(s) {
+  $("frame").textContent = s.frame ?? "–";
+  $("fps").textContent = s.fps == null ? "–" : Math.round(s.fps);
+  $("uptime").textContent = fmtTime(s.uptime);
+}
+
+// ----- failures -----
+function renderChips() {
+  const counts = Object.fromEntries(SEV.map((s) => [s, 0]));
+  for (const i of state.issues.values()) counts[i.severity]++;
+  // The server caps warnings and info in snapshots; its totals are exact.
+  for (const s of SEV) counts[s] = Math.max(counts[s], (state.totals || {})[s] || 0);
+  $("sevchips").innerHTML = SEV.map((s) =>
+    `<button class="chip" data-sev="${s}" aria-pressed="${filters.has(s)}">${SEV_LABEL[s]}<span class="n">${counts[s]}</span></button>`).join("");
+}
+
+function issueHtml(i) {
+  const isNew = state.prevSigs && !state.prevSigs.has(i.sig);
+  const patched = i.nid && state.patched.has(i.nid) ? `<span class="tag patched" title="The running hot patch replaces this function">Patched</span>` : "";
+  const hint = i.anyps5 === "Done" ? `<span class="tag hint" title="AnyPS5 lists this function as implemented">AnyPS5 has it</span>` : "";
+  const nid = i.nid && i.name !== i.nid ? `<code>${esc(i.nid)}</code>` : "";
+  const where = i.where ? `<code>${esc(i.where)}</code>` : "";
+  return `<div class="issue" data-sev="${i.severity}">
+    <span class="stripe"></span>
+    <div class="body">
+      <div class="title"${i.symbol && i.symbol !== i.name ? ` title="${esc(i.symbol)}"` : ""}>${esc(i.text || i.name || i.sig)}</div>
+      <div class="meta"><span class="kind">${esc(KIND_LABEL[i.kind] || i.kind)}</span>${nid}${where}<span>at ${fmtTime(i.first)}</span>${isNew ? '<span class="tag new">New</span>' : ""}${patched}${hint}</div>
+    </div>
+    <div class="count">×${i.count}</div>
+  </div>`;
+}
+
+let issuesQueued = false;
+function renderIssues() {
+  if (issuesQueued) return;
+  issuesQueued = true;
+  requestAnimationFrame(() => {
+    issuesQueued = false;
+    renderChips();
+    const list = [...state.issues.values()].filter((i) => filters.has(i.severity))
+      .sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity) || a.first - b.first);
+    const shown = list.slice(0, 400);
+    $("issues").innerHTML = shown.length
+      ? shown.map(issueHtml).join("") + (list.length > shown.length ? `<div class="empty">${list.length - shown.length} more not shown</div>` : "")
+      : `<div class="empty">${state.issues.size ? "Nothing at these severities." : "No failures recorded yet."}</div>`;
+  });
+}
+
+$("sevchips").addEventListener("click", (e) => {
+  const b = e.target.closest(".chip");
+  if (!b) return;
+  const s = b.dataset.sev;
+  filters.has(s) ? filters.delete(s) : filters.add(s);
+  renderIssues();
+});
+
+// ----- log -----
+const MAX_LOG = 3000;
+// Lines arrive hundreds of times a second. Appending, trimming and scrolling once per frame
+// keeps the page responsive; doing it per line forced a full layout of the log each time.
+const logQueues = new Map();
+function addLog(target, entry, cls) {
+  const div = document.createElement("div");
+  if (cls) div.className = cls;
+  if (entry.dim) div.classList.add("dim");
+  div.innerHTML = (entry.t != null ? `<span class="t">${entry.t.toFixed(1)}</span>` : "") + esc(entry.text);
+  if (logFilter && !entry.text.toLowerCase().includes(logFilter)) div.hidden = true;
+  queueLogNode(target, div);
+}
+function clearLog(target) {
+  const queue = logQueues.get(target);
+  if (queue) queue.length = 0;
+  $(target).innerHTML = "";
+}
+function queueLogNode(target, node) {
+  let queue = logQueues.get(target);
+  if (!queue) {
+    queue = [];
+    logQueues.set(target, queue);
+    requestAnimationFrame(() => flushLog(target));
+  }
+  queue.push(node);
+  if (queue.length > MAX_LOG) queue.splice(0, queue.length - MAX_LOG);
+}
+function flushLog(target) {
+  const queue = logQueues.get(target) || [];
+  logQueues.delete(target);
+  const el = $(target);
+  const fragment = document.createDocumentFragment();
+  for (const node of queue) fragment.appendChild(node);
+  el.appendChild(fragment);
+  const excess = el.childElementCount - MAX_LOG;
+  if (excess > 0) {
+    const range = document.createRange();
+    range.setStartBefore(el.firstElementChild);
+    range.setEndAfter(el.children[excess - 1]);
+    range.deleteContents();
+  }
+  if ($("follow").checked) $("logscroll").scrollTop = $("logscroll").scrollHeight;
+}
+
+$("filter").addEventListener("input", (e) => {
+  logFilter = e.target.value.trim().toLowerCase();
+  for (const d of document.querySelectorAll("#log div, #buildlog div")) d.hidden = logFilter && !d.textContent.toLowerCase().includes(logFilter);
+});
+
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t.dataset.tab === name));
+  $("log").hidden = name !== "log";
+  $("buildlog").hidden = name !== "build";
+  $("sweepview").hidden = name !== "sweep";
+  $("historyview").hidden = name !== "history";
+  $("perfview").hidden = name !== "perf";
+  $("testsview").hidden = name !== "tests";
+  if (name === "history") act(loadHistory);
+  if (name === "tests") act(loadTests);
+  if (name === "perf") renderPerf();
+}
+
+// ----- performance -----
+const perf = { samples: [] };
+const KIND_NAME = { cpu: "CPU-bound", gpu: "GPU-bound", compile: "Shader compiles", waiting: "Nothing saturated", target: "At target" };
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+function barsHtml(items, kindFor) {
+  return items.map(({ label, value }) => `<div class="pbar"${kindFor ? ` data-kind="${kindFor(value)}"` : ""}>
+    <div class="track"><div class="fill" style="width:${Math.min(100, value)}%"></div><span class="label">${esc(label)}</span></div>
+    <span class="val">${value.toFixed(0)}%</span></div>`).join("");
+}
+
+function perfSummaryHtml(p) {
+  if (!p || !p.seconds) return "";
+  const order = ["cpu", "gpu", "compile", "waiting", "target"];
+  const share = order.filter((k) => p.share[k]).map((k) => `<div data-kind="${k}" style="flex:${p.share[k]}" title="${KIND_NAME[k]}: ${p.share[k]}% of seconds">${p.share[k] >= 12 ? `${KIND_NAME[k]} ${p.share[k]}%` : ""}</div>`).join("");
+  const threads = (p.top_threads || []).slice(0, 5).map((t) => ({ label: t.name, value: t.cpu }));
+  const gpu = Object.entries(p.gpu_avg || {}).filter(([, v]) => v > 0.5).map(([k, v]) => ({ label: k, value: v }));
+  return `<div class="perfsum">
+    <div class="facts"><span><b data-kind="${p.main}" style="color:var(--k)">${KIND_NAME[p.main] || p.main}</b> most of the time</span>
+      <span>fps avg ${p.fps_avg ?? "–"}, min ${p.fps_min ?? "–"}</span><span>${p.compiles} shader compiles, ${p.compile_ms} ms</span></div>
+    <div class="pshare">${share}</div>
+    <div class="pcols"><section><h4>Busiest threads <small>average % of a core</small></h4><div class="bars">${barsHtml(threads, (v) => (v >= 85 ? "cpu" : "waiting"))}</div></section>
+      <section><h4>GPU <small>average % busy</small></h4><div class="bars">${barsHtml(gpu, (v) => (v >= 90 ? "gpu" : "waiting")) || '<div class="note">idle</div>'}</div></section></div>
+  </div>`;
+}
+
+// ----- thread profile -----
+let profiling = false;
+function profileTable(title, rep, note) {
+  if (!rep || !rep.samples) return `<div class="pptable"><b>${esc(title)}</b><div class="note">${esc(note || "No samples.")}</div></div>`;
+  // Rows: where in the emulator the time went (system and driver time charged to the caller),
+  // then the total share of each function anywhere on the stack.
+  const total = new Map(rep.inclusive.map((r) => [r.function, r.percent]));
+  const rows = (rep.emulator || []).slice(0, 25).map((r) => `<tr><td class="f">${esc(r.function)}<span class="bar" style="width:${r.percent}%"></span></td>
+    <td class="n">${r.percent}%</td><td class="n">${total.has(r.function) ? total.get(r.function) + "%" : "–"}</td></tr>`).join("");
+  return `<div class="pptable"><b>${esc(title)}</b> <span class="note">${rep.samples} samples${note ? " · " + esc(note) : ""}</span>
+    <table><thead><tr><th>Emulator function</th><th title="Share of samples where this was the innermost emulator function: its own time plus the system and driver calls it made">Here</th><th title="Share of samples with this function anywhere on the stack">Total</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function showProfile(r) {
+  $("profiletables").innerHTML = profileTable("During hitches", r.hitches, `${r.hitch_count} hitches`) +
+    profileTable("Whole capture", r.all, `${r.seconds} s`);
+}
+function setProfiling(on, text) {
+  profiling = on;
+  $("profilebtn").textContent = on ? "Stop profile" : "Profile Thread_Gpu";
+  $("profilebtn").disabled = !on && state.phase !== "running";
+  if (text) $("profilestatus").textContent = text;
+}
+$("profilebtn").addEventListener("click", () => act(async () => {
+  if (!profiling) {
+    await api("/api/profile/start", { thread: "Thread_Gpu" });
+    setProfiling(true, "Recording… stop after the stutter you want to explain.");
+  } else {
+    $("profilebtn").disabled = true;
+    $("profilestatus").textContent = "Naming functions…";
+    const r = await api("/api/profile/stop", {});
+    setProfiling(false, `Profile saved with the run (${r.seconds} s, ${r.all.samples} samples, profiler held the thread ${r.overhead_percent}% of the time).`);
+    showProfile(r);
+  }
+}));
+
+// ----- frame times (--frame-times) -----
+const frameData = { batches: [] };
+let framesQueued = false;
+
+// Same definitions as perf.frame_stats / perf.hitch_flags on the server: nearest-rank
+// percentiles; a hitch took at least twice the pace around it (median of the 30 frames before
+// and, when at least 10 follow, of the 30 after), so a 60 -> 30 fps change is not a hitch.
+function hitchFlags(ms) {
+  const median = (v) => [...v].sort((a, b) => a - b)[Math.floor((v.length - 1) / 2)];
+  return ms.map((v, i) => {
+    if (i === 0) return false;
+    let pace = median(ms.slice(Math.max(0, i - 30), i));
+    const after = ms.slice(i + 1, i + 31);
+    if (after.length >= 10) pace = Math.max(pace, median(after));
+    return v >= 2 * pace;
+  });
+}
+
+function frameStats(ms) {
+  if (!ms.length) return null;
+  const sorted = [...ms].sort((a, b) => a - b);
+  const rank = (q) => sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)];
+  const median = rank(0.5), p99 = rank(0.99), total = ms.reduce((a, b) => a + b, 0);
+  return { frames: ms.length, fps_avg: total ? +(1000 * ms.length / total).toFixed(1) : null, p50_ms: median,
+           p95_ms: rank(0.95), p99_ms: p99, max_ms: sorted[sorted.length - 1],
+           low1_fps: p99 > 0 ? +(1000 / p99).toFixed(1) : null, hitches: hitchFlags(ms).filter(Boolean).length };
+}
+
+function frameStatsHtml(st, span) {
+  if (!st) return '<span class="note">No frames presented' + (span ? ` in the last ${span}` : "") + ".</span>";
+  return `<span>avg <b>${st.fps_avg}</b> fps</span><span>1% low <b>${st.low1_fps ?? "–"}</b> fps</span>
+    <span>median <b>${st.p50_ms.toFixed(1)}</b> ms</span><span>p99 <b>${st.p99_ms.toFixed(1)}</b> ms</span>
+    <span>worst <b>${st.max_ms.toFixed(1)}</b> ms</span><span class="${st.hitches ? "hitch" : ""}">hitches <b>${st.hitches}</b> of ${st.frames}</span>` +
+    (span ? `<span class="note">${span}</span>` : "");
+}
+
+function renderFrames() {
+  if (framesQueued) return;
+  framesQueued = true;
+  requestAnimationFrame(() => {
+    framesQueued = false;
+    if ($("perfview").hidden) return;
+    const recent = frameData.batches.slice(-30).flatMap((b) => b[1]);
+    $("pfstats").innerHTML = frameData.batches.length ? frameStatsHtml(frameStats(recent), "last 30 s")
+                                                      : '<span class="note">Waiting for frames…</span>';
+    drawFrames();
+  });
+}
+
+function drawFrames() {
+  const c = $("pframes");
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w) return;
+  const dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+  const g = c.getContext("2d");
+  g.scale(dpr, dpr);
+  g.clearRect(0, 0, w, h);
+  const ms = frameData.batches.slice(-20).flatMap((b) => b[1]);
+  if (!ms.length) return;
+  const st = frameStats(ms);
+  const top = Math.min(Math.max(40, st.p99_ms * 1.6), 250);  // ms at the top edge
+  const y = (v) => h - 4 - (h - 10) * Math.min(v, top) / top;
+  const slots = Math.max(ms.length, 600), bw = w / slots;
+  g.font = "10px " + cssVar("--mono");
+  for (const [v, label] of [[1000 / 60, "16.7 ms · 60 fps"], [1000 / 30, "33.3 ms · 30 fps"]]) {
+    if (v > top) continue;
+    g.strokeStyle = cssVar("--line"); g.lineWidth = 1; g.setLineDash([3, 4]);
+    g.beginPath(); g.moveTo(0, y(v)); g.lineTo(w, y(v)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = cssVar("--ink-3"); g.fillText(label, 4, y(v) - 3);
+  }
+  const normal = cssVar("--accent"), hitch = cssVar("--crit"), flags = hitchFlags(ms);
+  ms.forEach((v, i) => {
+    const x = (slots - ms.length + i) * bw;
+    g.fillStyle = flags[i] ? hitch : normal;
+    g.globalAlpha = flags[i] ? 1 : 0.6;
+    g.fillRect(x, y(v), Math.max(1, bw - (bw > 2 ? 0.5 : 0)), h - 4 - y(v));
+    if (v > top) { g.fillRect(x, 2, Math.max(2, bw), 3); }  // clipped: mark the top edge
+  });
+  g.globalAlpha = 1;
+}
+
+function drawTimeline() {
+  const c = $("ptimeline");
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w) return;
+  const dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+  const g = c.getContext("2d");
+  g.scale(dpr, dpr);
+  g.clearRect(0, 0, w, h);
+  const span = 180, s = perf.samples.slice(-span);
+  const cw = w / span;
+  const colors = { cpu: cssVar("--crit"), gpu: cssVar("--accent"), compile: cssVar("--err"), waiting: cssVar("--ink-3"), target: cssVar("--ok") };
+  s.forEach((x, i) => {
+    g.fillStyle = colors[x.verdict.kind];
+    g.globalAlpha = 0.55;
+    g.fillRect((span - s.length + i) * cw, h - 14, Math.max(1, cw - 0.5), 14);
+  });
+  g.globalAlpha = 1;
+  const top = Math.max(60, ...s.map((x) => x.fps || 0));
+  g.strokeStyle = cssVar("--line"); g.lineWidth = 1; g.setLineDash([3, 4]);
+  const y60 = (h - 18) * (1 - 60 / top) + 2;
+  g.beginPath(); g.moveTo(0, y60); g.lineTo(w, y60); g.stroke(); g.setLineDash([]);
+  g.fillStyle = cssVar("--ink-3"); g.font = "10px " + cssVar("--mono"); g.fillText("60 fps", 4, y60 - 3);
+  g.strokeStyle = cssVar("--ink"); g.lineWidth = 1.5; g.beginPath();
+  s.forEach((x, i) => {
+    const px = (span - s.length + i + 0.5) * cw, py = (h - 18) * (1 - (x.fps || 0) / top) + 2;
+    i ? g.lineTo(px, py) : g.moveTo(px, py);
+  });
+  g.stroke();
+}
+
+function renderPerf() {
+  const last = perf.samples[perf.samples.length - 1];
+  const b = $("bneck");
+  if (!last) {
+    b.hidden = true;
+    $("pverdict").dataset.kind = "none";
+    $("pverdict").textContent = state.phase === "running" ? "Measuring…" : "Run a game to see what limits it.";
+    $("pthreads").innerHTML = $("pgpu").innerHTML = $("pshare").innerHTML = "";
+    $("pcompile").textContent = "–";
+    drawTimeline();
+    renderFrames();
+    return;
+  }
+  b.hidden = false;
+  b.dataset.kind = last.verdict.kind;
+  b.textContent = last.verdict.text;
+  if ($("perfview").hidden) return;
+  $("pverdict").dataset.kind = last.verdict.kind;
+  $("pverdict").textContent = last.verdict.text;
+  $("pthreads").innerHTML = barsHtml(last.threads.slice(0, 10).map((t) => ({ label: t.name, value: t.cpu })), (v) => (v >= 85 ? "cpu" : "waiting")) || '<div class="note">idle</div>';
+  $("pgpu").innerHTML = barsHtml(Object.entries(last.gpu).map(([k, v]) => ({ label: k, value: v })), (v) => (v >= 90 ? "gpu" : "waiting")) || '<div class="note">no GPU counters</div>';
+  const n = perf.samples.length, share = {};
+  let compiles = 0, ms = 0, pipelines = 0, pms = 0;
+  for (const x of perf.samples) {
+    share[x.verdict.kind] = (share[x.verdict.kind] || 0) + 1;
+    compiles += x.compiles || 0; ms += x.compile_ms || 0; pipelines += x.pipelines || 0; pms += x.pipeline_ms || 0;
+  }
+  $("pshare").innerHTML = ["cpu", "gpu", "compile", "waiting", "target"].filter((k) => share[k]).map((k) => {
+    const pct = Math.round(100 * share[k] / n);
+    return `<div data-kind="${k}" style="flex:${share[k]}" title="${KIND_NAME[k]}: ${pct}% of ${n} s">${pct >= 12 ? `${KIND_NAME[k]} ${pct}%` : ""}</div>`;
+  }).join("");
+  $("pcompile").textContent = `${compiles} new shaders, ${ms} ms translating · ${pipelines} pipelines, ${Math.round(pms)} ms building them in the driver`;
+  drawTimeline();
+  renderFrames();
+}
+
+$("bneck").addEventListener("click", () => showTab("perf"));
+window.addEventListener("resize", () => { if (!$("perfview").hidden) { drawTimeline(); drawFrames(); } });
+
+// ----- monitor -----
+let displayChoice = "";
+try { displayChoice = localStorage.getItem("kytylive.display") || ""; } catch {}
+function renderDisplays(displays) {
+  const sel = $("display");
+  sel.hidden = !displays || !displays.length;
+  if (sel.hidden) return;
+  if (displayChoice !== "" && !displays.some((d) => String(d.index) === displayChoice)) displayChoice = "";
+  sel.innerHTML = '<option value="">Primary monitor</option>' + displays.map((d) =>
+    `<option value="${d.index}">Monitor ${d.index}: ${esc(d.name)} ${d.width}×${d.height}${d.primary ? " (primary)" : ""}</option>`).join("");
+  sel.value = displayChoice;
+}
+$("display").addEventListener("change", (e) => {
+  displayChoice = e.target.value;
+  try { localStorage.setItem("kytylive.display", displayChoice); } catch {}
+});
+const selectedDisplay = () => ($("display").hidden ? "" : displayChoice);
+
+// ----- emulator options -----
+let emuOptions = [];
+let checked = new Set();
+try { checked = new Set(JSON.parse(localStorage.getItem("kytylive.options") || "[]")); } catch {}
+
+function selectedOptions() {
+  return emuOptions.filter((o) => !o.always && checked.has(o.flag)).map((o) => o.flag);
+}
+
+function renderOptions() {
+  const row = (o) => {
+    const on = o.always || checked.has(o.flag);
+    return `<label class="opt${o.always ? " locked" : ""}${on ? " on" : ""}" title="${esc(o.help)}">
+      <input type="checkbox" data-flag="${esc(o.flag)}"${on ? " checked" : ""}${o.always ? " disabled" : ""}>
+      <code>${esc(o.flag)}${o.kind === "bool" ? " true" : ""}</code>
+      <small>${esc(o.help)}${o.always ? " (always on in Kyty Live)" : ""}</small>
+    </label>`;
+  };
+  // Checked options first, so what a run will use is visible without scrolling.
+  const on = emuOptions.filter((o) => !o.always && checked.has(o.flag));
+  const rest = emuOptions.filter((o) => o.always || !checked.has(o.flag));
+  $("opts").innerHTML = emuOptions.length
+    ? (on.length ? `<div class="optshead">On</div>${on.map(row).join("")}<div class="optshead">Available</div>` : "") + rest.map(row).join("")
+    : `<div class="note">No options found. Build and install the emulator first.</div>`;
+  const n = selectedOptions().length;
+  $("optssummary").innerHTML = `Options${n ? ` <span class="count">${n} on</span>` : ""}`;
+  $("optssummary").title = n ? `On: ${selectedOptions().join(" ")}` : "No extra emulator options";
+}
+
+// Close the dropdown on Escape or a click outside it.
+document.addEventListener("click", (e) => {
+  document.querySelectorAll("details.optsmenu[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("optsmenu").open) {
+    $("optsmenu").open = false;
+    $("optssummary").focus();
+  }
+});
+
+$("opts").addEventListener("change", (e) => {
+  const flag = e.target.dataset.flag;
+  if (!flag) return;
+  e.target.checked ? checked.add(flag) : checked.delete(flag);
+  try { localStorage.setItem("kytylive.options", JSON.stringify([...checked])); } catch {}
+  renderOptions();
+});
+
+// ----- sweep -----
+function renderSweep() {
+  const sw = sweep;
+  const running = !!(sw && sw.running);
+  $("sweep").textContent = running ? "Stop sweep" : "Sweep all";
+  $("sweepsecs").disabled = running;
+  $("sweepflags").disabled = running;
+  if (!sw) return;
+  const done = sw.rows.length;
+  const crashed = sw.rows.filter((r) => r.crashed).length;
+  const flags = sw.flags && sw.flags.length ? ` · flags <code>${esc(sw.flags.join(" "))}</code>` : " · no extra flags";
+  const head = running
+    ? `<b>Sweep ${sw.index}/${sw.total}</b><span class="note">now: ${esc(sw.current || "")} · ${sw.seconds}s each${flags}</span>`
+    : `<b>Sweep finished</b><span class="note">${done}/${sw.total} games · ${crashed} stopped early · ${sw.seconds}s each${flags} · saved in ${esc(sw.folder)}</span>`;
+  $("sweepview").innerHTML = `<div class="sweephead">${head}</div>${sweepRowsHtml(sw.rows)}` +
+    (running && done < sw.total ? `<div class="empty">${sw.total - done} to go</div>` : "");
+}
+
+function sweepRowsHtml(rowsIn) {
+  return rowsIn.map((r) => {
+    const c = r.counts || {};
+    const pill = r.crashed ? `<span class="pill bad">${esc(r.outcome)}</span>`
+      : `<span class="pill ok">${esc(r.outcome)}</span>`;
+    const img = r.snapshot ? `<a href="${esc(r.snapshot)}" target="_blank" rel="noopener"><img src="${esc(r.snapshot)}" alt="${esc(r.title)} at the end of its run" loading="lazy"></a>`
+      : `<div class="noimg">no picture</div>`;
+    const list = [...(r.critical || []), ...(r.errors || [])];
+    return `<div class="sweeprow${r.crashed ? " crashed" : ""}">${img}<div>
+      <div class="top"><b>${esc(r.title)}</b><span class="note">${esc(r.id)}</span>${pill}${r.stalled ? '<span class="pill run">stalled</span>' : ""}</div>
+      <div class="nums"><span>${r.seconds ?? "–"}s</span><span>first frame ${r.first_frame_s ?? "never"}${r.first_frame_s != null ? "s" : ""}</span>
+        <span>frame ${r.max_frame ?? 0}</span><span>fps ${r.last_fps != null ? Math.round(r.last_fps) : "–"}</span>
+        <span class="sev-c">${c.critical ?? 0} critical</span><span class="sev-e">${c.error ?? 0} errors</span><span class="sev-w">${c.warning ?? 0} warnings</span></div>
+      ${r.perf && r.perf.seconds ? `<div class="nums"><span data-kind="${r.perf.main}" style="color:var(--k)">${KIND_NAME[r.perf.main] || r.perf.main} ${r.perf.share[r.perf.main]}%</span>${r.perf.top_threads && r.perf.top_threads[0] ? `<span>busiest ${esc(r.perf.top_threads[0].name)} ${r.perf.top_threads[0].cpu}%</span>` : ""}${r.perf.gpu_avg && r.perf.gpu_avg["3D"] != null ? `<span>GPU 3D ${r.perf.gpu_avg["3D"]}%</span>` : ""}</div>` : ""}
+      ${list.length ? `<ul>${list.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
+    </div></div>`;
+  }).join("");
+}
+
+$("sweep").addEventListener("click", () => act(async () => {
+  if (sweep && sweep.running) {
+    await api("/api/sweep/stop", {});
+    return;
+  }
+  sweep = await api("/api/sweep", { seconds: Number($("sweepsecs").value) || 60, flags: $("sweepflags").value.trim(), options: selectedOptions(), display: selectedDisplay(),
+    games: [...sweepGames].filter((id) => state.games.some((g) => g.id === id)), repeats: Number($("sweeprepeats").value) || 1 });
+  showTab("sweep");
+  renderSweep();
+}));
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
+
+// ----- verdict -----
+function showVerdict(run, diff) {
+  const v = $("verdict");
+  const crashed = run.exit_code !== 0 && !run.stopped_by_user;
+  let html = `<span class="head ${crashed ? "crit" : ""}">${esc(run.game.title)}: ${esc(run.exit_reason)}</span>
+    <span class="note">ran ${fmtTime((run.end - run.start))}, reached frame ${run.max_frame || 0}${run.commit ? `, build ${esc(run.commit)}${run.dirty_files ? ` + ${run.dirty_files} changed files` : ""}` : ""}</span>`;
+  if (diff) {
+    // Average fps, not frame count: runs are stopped at different times.
+    const avg = (r) => (r.max_frame && r.end > r.start ? r.max_frame / (r.end - r.start) : null);
+    const a = avg(run), b = avg(diff.previous);
+    const fps = a != null && b != null ? `, avg <b>${a.toFixed(1)}</b> fps (was ${b.toFixed(1)})` : "";
+    html += `<span>vs previous run: <b class="${diff.new.length ? "crit" : ""}">${diff.new.length} new</b>, <b class="${diff.gone.length ? "good" : ""}">${diff.gone.length} gone</b>${fps}</span>`;
+    const li = (arr) => arr.slice(0, 30).map((i) => `<li>${esc(i.text || i.sig)}</li>`).join("");
+    if (diff.new.length) html += `<details><summary>New failures</summary><ul>${li(diff.new)}</ul></details>`;
+    if (diff.gone.length) html += `<details><summary>Gone since last run</summary><ul>${li(diff.gone)}</ul></details>`;
+  } else {
+    html += `<span class="note">First recorded run of this game. The next run will be compared against it.</span>`;
+  }
+  v.innerHTML = html;
+  v.classList.add("show");
+  if (crashed) { $("phase").dataset.phase = "crashed"; $("phase").textContent = "Crashed"; }
+}
+
+// ----- crash analysis -----
+function crashHtml(c) {
+  if (!c) return "";
+  const where = c.module ? `in <b>${esc(c.module)}</b> + ${esc(c.module_offset)}` : `at pc ${esc(c.pc)}${c.modules_known ? " (outside every loaded module)" : ""}`;
+  const frames = (c.frames || []).length
+    ? `<ol class="frames">${c.frames.map((f) => `<li>${esc(f.function || "(no symbol)")} <code>${esc(f.address)}</code></li>`).join("")}</ol>
+       <div class="note">Emulator functions found on the stack, innermost first. It is a stack scan, so an old frame can appear.</div>`
+    : `<div class="note">No emulator return addresses on the stack.</div>`;
+  return `<div class="crashinfo"><div>Host exception ${where}: access ${esc(c.access)} at ${esc(c.address)}, code ${esc(c.code)}, thread ${esc(c.thread || "?")}</div>${frames}</div>`;
+}
+
+// ----- C++ test suites -----
+const tests = { suites: [], history: [], picked: new Map(), current: null, openId: null };
+try { tests.picked = new Map(JSON.parse(localStorage.getItem("kytylive.tests") || "[]")); } catch {}
+const saveTestPicks = () => { try { localStorage.setItem("kytylive.tests", JSON.stringify([...tests.picked])); } catch {} };
+
+async function loadTests() {
+  const d = await api("/api/tests");
+  tests.suites = d.suites; tests.history = d.history; tests.current = d.current;
+  renderTests();
+}
+
+function testRunHtml(t) {
+  const ok = t.results.filter((r) => r.passed).length;
+  return `<div class="dhead"><b>Tests ${esc(when(t.id))}</b><span class="note">${ok}/${t.results.length} passed · build ${esc(t.commit || "?")}${t.running ? " · running " + esc(t.current || "") : ""}</span>
+    <span class="spacer"></span><button class="btn small" data-close-test>Close</button></div>
+    <div class="cmpwrap"><table class="cmp"><thead><tr><th>Suite</th><th>Result</th><th>Cases</th><th>Time</th><th>Log</th></tr></thead><tbody>
+    ${t.results.map((r) => `<tr><td><code>${esc(r.name)}</code>${r.mode ? `<small>${esc(r.mode)}</small>` : ""}</td>
+      <td><span class="pill ${r.passed ? "ok" : "bad"}">${r.passed ? "passed" : "failed"}</span>${r.failure ? `<small class="down">${esc(r.failure)}</small>` : ""}</td>
+      <td>${r.cases_ok || ""}</td><td>${r.seconds}s</td>
+      <td>${r.log ? `<a href="/api/testfiles/${esc(t.id)}/${esc(r.log)}" target="_blank" rel="noopener">log</a>` : ""}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+function renderTests() {
+  const running = !!(tests.current && tests.current.running);
+  $("suitelist").innerHTML = tests.suites.map((s) => {
+    const picked = tests.picked.has(s.name);
+    const mode = tests.picked.get(s.name) || "";
+    const modes = s.modes.length ? `<select data-mode="${esc(s.name)}" aria-label="Mode for ${esc(s.name)}"><option value="">all cases</option>
+      ${s.modes.map((m) => `<option value="${esc(m)}"${m === mode ? " selected" : ""}>${esc(m)}</option>`).join("")}</select>` : "<span></span>";
+    return `<label class="suite"><input type="checkbox" data-suite="${esc(s.name)}"${picked ? " checked" : ""}>
+      <span><code>${esc(s.name)}</code>${s.gpu ? '<span class="tag gpu">GPU</span>' : ""}</span>${modes}</label>`;
+  }).join("") || `<div class="empty">No test suites found in the emulator's CMakeLists.txt.</div>`;
+  $("runtests").disabled = running || !tests.picked.size || state.phase === "running" || state.phase === "building";
+  $("teststatus").textContent = running ? `Running: ${tests.current.current || "starting"} (${tests.current.results.length}/${tests.current.selection.length} done)` : "";
+  $("testhistory").innerHTML = tests.history.length ? tests.history.map((t) => {
+    const ok = t.results.filter((r) => r.passed).length;
+    return `<div class="hitem${tests.openId === t.id ? " active" : ""}" data-testrun="${esc(t.id)}">
+      <span class="pill ${ok === t.results.length ? "ok" : "bad"}">${ok}/${t.results.length}</span>
+      <div class="main"><b>${esc(when(t.id))}</b><div class="sub"><span>${esc(t.results.map((r) => r.name + (r.mode ? " " + r.mode : "")).join(", "))}</span><span>${esc(t.commit || "")}</span></div></div>
+      <span class="note">Open</span></div>`;
+  }).join("") : `<div class="empty">No test runs yet.</div>`;
+  if (tests.current && (running || tests.openId === tests.current.id)) {
+    $("testdetail").innerHTML = testRunHtml(tests.current);
+    $("testdetail").hidden = false;
+  }
+}
+
+$("testsview").addEventListener("change", (e) => {
+  const box = e.target.closest("[data-suite]");
+  if (box) {
+    box.checked ? tests.picked.set(box.dataset.suite, tests.picked.get(box.dataset.suite) || "") : tests.picked.delete(box.dataset.suite);
+    saveTestPicks(); renderTests(); return;
+  }
+  const sel = e.target.closest("[data-mode]");
+  if (sel) { tests.picked.set(sel.dataset.mode, sel.value); saveTestPicks(); renderTests(); }
+});
+$("testsview").addEventListener("click", (e) => {
+  if (e.target.closest("[data-close-test]")) { tests.openId = null; $("testdetail").hidden = true; renderTests(); return; }
+  const row = e.target.closest("[data-testrun]");
+  if (!row) return;
+  const t = tests.history.find((x) => x.id === row.dataset.testrun);
+  tests.openId = t.id;
+  $("testdetail").innerHTML = testRunHtml(t);
+  $("testdetail").hidden = false;
+  renderTests();
+});
+$("runtests").addEventListener("click", () => act(async () => {
+  const suites = [...tests.picked].map(([name, mode]) => ({ name, mode }));
+  tests.current = await api("/api/tests/run", { suites });
+  tests.openId = tests.current.id;
+  renderTests();
+}));
+
+// ----- sweep game picker -----
+let sweepGames = new Set();
+try { sweepGames = new Set(JSON.parse(localStorage.getItem("kytylive.sweepgames") || "[]")); } catch {}
+function renderSweepGames() {
+  $("sweepgamelist").innerHTML = state.games.map((g) => `<label class="opt${sweepGames.has(g.id) ? " on" : ""}">
+    <input type="checkbox" data-sweepgame="${esc(g.id)}"${sweepGames.has(g.id) ? " checked" : ""}>
+    <code>${esc(g.id)}</code><small>${esc(g.title)}</small></label>`).join("");
+  const n = [...sweepGames].filter((id) => state.games.some((g) => g.id === id)).length;
+  const reps = Number($("sweeprepeats").value) || 1;
+  $("sweepgamessummary").textContent = `${n ? `${n} game${n > 1 ? "s" : ""}` : "All games"}${reps > 1 ? ` ×${reps}` : ""}`;
+}
+$("sweepgamelist").addEventListener("change", (e) => {
+  const id = e.target.dataset.sweepgame;
+  if (!id) return;
+  e.target.checked ? sweepGames.add(id) : sweepGames.delete(id);
+  try { localStorage.setItem("kytylive.sweepgames", JSON.stringify([...sweepGames])); } catch {}
+  renderSweepGames();
+});
+$("sweeprepeats").addEventListener("input", renderSweepGames);
+
+// ----- history -----
+const hist = { sweeps: [], runs: [], picked: [], open: null };
+const when = (id) => `${id.slice(0, 4)}-${id.slice(4, 6)}-${id.slice(6, 8)} ${id.slice(9, 11)}:${id.slice(11, 13)}`;
+const runFlags = (r) => (r.args || []).slice(2).filter((a) => !["--no-splash", "--printf-direction", "Console"].includes(a));
+const runOutcome = (r) => (r.exit_code !== 0 && !r.stopped_by_user && r.end ? "crashed" : r.sweep && r.stopped_by_user ? "ran the full time" : r.stopped_by_user ? "stopped" : "exited");
+
+async function loadHistory() {
+  [hist.sweeps, hist.runs] = await Promise.all([api("/api/sweeps"), api("/api/runs")]);
+  const games = [...new Map(hist.runs.map((r) => [r.game.id, r.game.title])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  const sel = $("rungame"), keep = sel.value;
+  sel.innerHTML = `<option value="">All games</option>` + games.map(([id, t]) => `<option value="${esc(id)}">${esc(t)} (${esc(id)})</option>`).join("");
+  sel.value = games.some(([id]) => id === keep) ? keep : "";
+  renderSweepList();
+  renderRunList();
+}
+
+function renderSweepList() {
+  $("sweeplist").innerHTML = hist.sweeps.length ? hist.sweeps.map((s) => {
+    const flags = (s.meta.flags || []).join(" ");
+    return `<div class="hitem${hist.open === "sweep:" + s.id ? " active" : ""}" data-sweep="${esc(s.id)}">
+      <input type="checkbox" data-pick="${esc(s.id)}" aria-label="Compare this sweep"${hist.picked.includes(s.id) ? " checked" : ""}>
+      <div class="main"><b>${esc(when(s.id))}</b>
+        <div class="sub"><span>${s.games - s.crashed}/${s.games} ran full time</span><span class="sev-c">${s.critical} critical</span>
+          <span>${s.meta.seconds ? s.meta.seconds + "s each" : ""}</span><span>${esc(s.meta.commit || "")}</span>${flags ? `<code>${esc(flags)}</code>` : ""}</div></div>
+      <span class="note">Open</span></div>`;
+  }).join("") : `<div class="empty">No sweeps yet.</div>`;
+  $("cmpbtn").disabled = hist.picked.length !== 2;
+}
+
+function renderRunList() {
+  const game = $("rungame").value;
+  const runs = hist.runs.filter((r) => !game || r.game.id === game).slice(0, game ? 500 : 80);
+  $("runlist").innerHTML = runs.length ? runs.map((r) => {
+    const c = r.issue_counts || {};
+    const out = runOutcome(r);
+    const flags = runFlags(r).join(" ");
+    return `<div class="hitem${hist.open === "run:" + r.id ? " active" : ""}" data-run="${esc(r.id)}">
+      <span class="pill ${out === "crashed" ? "bad" : "ok"}">${esc(out)}</span>
+      <div class="main"><b>${esc(r.game.title)}</b>
+        <div class="sub"><span>${esc(when(r.id))}</span><span>frame ${r.max_frame || 0}</span><span>fps ${r.last_fps != null ? Math.round(r.last_fps) : "–"}</span>
+          <span class="sev-c">${c.critical ?? 0}C</span><span class="sev-e">${c.error ?? 0}E</span><span class="sev-w">${c.warning ?? 0}W</span>
+          <span>${esc(r.commit || "")}${r.dirty_files ? "+" : ""}</span>${flags ? `<code>${esc(flags)}</code>` : ""}${r.sweep ? `<span>sweep ${esc(when(r.sweep))}</span>` : ""}</div></div>
+      <span class="note">${(r.snapshots || []).length ? `${r.snapshots.length} snap` : ""}</span></div>`;
+  }).join("") : `<div class="empty">No runs${game ? " for this game" : ""} yet.</div>`;
+}
+
+function showDetail(html, key) {
+  hist.open = key;
+  $("hdetail").innerHTML = html;
+  $("hdetail").hidden = false;
+  renderSweepList();
+  renderRunList();
+  $("hdetail").scrollIntoView({ block: "nearest" });
+}
+
+const closeBtn = `<button class="btn small" data-close>Close</button>`;
+
+async function openSweep(id) {
+  const s = await api(`/api/sweeps/${encodeURIComponent(id)}`);
+  const ok = s.rows.filter((r) => !r.crashed).length;
+  showDetail(`<div class="dhead"><b>Sweep ${esc(when(s.id))}</b><span class="note">${ok}/${s.rows.length} ran the full time ·
+    ${s.meta.seconds ? s.meta.seconds + "s each · " : ""}${esc(s.meta.commit || "build not recorded")}
+    ${(s.meta.flags || []).length ? ` · <code>${esc(s.meta.flags.join(" "))}</code>` : ""}</span><span class="spacer"></span>${closeBtn}</div>
+    <div class="sweepview" style="padding:0">${sweepRowsHtml(s.rows)}</div>`, "sweep:" + id);
+}
+
+function delta(n, unit = "") {
+  if (n == null || n === 0) return "";
+  return `<span class="${n > 0 ? "up" : "down"}">${n > 0 ? "+" : ""}${n}${unit}</span>`;
+}
+
+async function compareSweeps() {
+  const [a, b] = [...hist.picked].sort();
+  const c = await api(`/api/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`);
+  const order = { regressed: 0, fixed: 1, new: 2, same: 3, incomplete: 4, missing: 5 };
+  const rows = [...c.rows].sort((x, y) => order[x.change] - order[y.change] || (x.title || "").localeCompare(y.title || ""));
+  const n = (k) => c.rows.filter((r) => r.change === k).length;
+  hist.report = c.report;
+  showDetail(`<div class="dhead"><b>${esc(when(a))} → ${esc(when(b))}</b>
+    <span class="note">${n("fixed")} fixed · ${n("regressed")} regressed · ${n("same")} unchanged</span>
+    <span class="spacer"></span><button class="btn small" data-copy>Copy report</button>${closeBtn}</div>
+    <div class="cmpwrap"><table class="cmp"><thead><tr><th>Game</th><th>Change</th><th>Before</th><th>After</th><th>Frames</th><th>Critical</th></tr></thead><tbody>
+    ${rows.map((r) => `<tr><td>${esc(r.title)}</td><td><span class="pill ${r.change}">${r.change}</span></td>
+      <td>${r.before ? esc(r.before.outcome) : "–"}</td><td>${r.after ? esc(r.after.outcome) : "–"}
+        ${r.gone_critical.map((t) => `<small class="up">gone: ${esc(t)}</small>`).join("")}${r.change !== "new" ? r.new_critical.map((t) => `<small class="down">new: ${esc(t)}</small>`).join("") : ""}</td>
+      <td>${r.before ? r.before.max_frame ?? 0 : "–"} → ${r.after ? r.after.max_frame ?? 0 : "–"} ${delta(r.frames_delta)}</td>
+      <td>${r.before ? r.before.critical : "–"} → ${r.after ? r.after.critical : "–"} ${delta(r.critical_delta == null ? null : -r.critical_delta)}</td></tr>`).join("")}
+    </tbody></table></div><div class="note" id="copynote"></div>`, "cmp");
+}
+
+async function openRun(id) {
+  const d = await api(`/api/runs/${encodeURIComponent(id)}`);
+  const m = d.meta;
+  const crit = d.issues.filter((i) => i.severity === "critical" || i.severity === "error");
+  const flags = runFlags(m).join(" ");
+  const mb = (d.log_bytes / 1048576).toFixed(1);
+  showDetail(`<div class="dhead"><b>${esc(m.game.title)}</b><span class="note">${esc(m.game.id)} · ${esc(when(m.id))}</span>
+    <span class="pill ${runOutcome(m) === "crashed" ? "bad" : "ok"}">${esc(m.exit_reason || runOutcome(m))}</span><span class="spacer"></span>${closeBtn}</div>
+    <div class="facts"><span>build ${esc(m.commit || "?")}${m.dirty_files ? ` + ${m.dirty_files} changed files` : ""}</span>
+      <span>ran ${m.end ? Math.round(m.end - m.start) : "?"}s</span><span>first frame ${m.first_frame_s ?? "–"}${m.first_frame_s != null ? "s" : ""}</span>
+      <span>frame ${m.max_frame || 0}</span><span>fps ${m.last_fps != null ? Math.round(m.last_fps) : "–"}</span>
+      ${flags ? `<span>flags <code>${esc(flags)}</code></span>` : "<span>no extra flags</span>"}${m.sweep ? `<span>part of sweep ${esc(when(m.sweep))}</span>` : ""}
+      ${m.facts && m.facts.gpu ? `<span>${esc(m.facts.gpu)}</span>` : ""}${m.facts && m.facts.source_build ? `<span>emulator ${esc(m.facts.source_build)}</span>` : ""}${m.facts && m.facts.device_fault ? `<span>GPU fault reports ${esc(m.facts.device_fault)}</span>` : ""}${m.facts && m.facts.gpu_checkpoints ? `<span>GPU checkpoints ${esc(m.facts.gpu_checkpoints)}</span>` : ""}
+      <a href="/api/files/${esc(m.id)}/output.log">full log (${mb} MB)</a></div>
+    ${m.crash ? crashHtml(m.crash) : ""}
+    <div class="logsearch"><form data-search="${esc(m.id)}"><input name="q" placeholder="Search this run's full log (2+ characters)" aria-label="Search the run log">
+      <button class="btn small">Search</button></form><div class="note" data-searchnote></div><pre data-searchout hidden></pre></div>
+    ${m.perf && m.perf.seconds ? perfSummaryHtml(m.perf) : ""}
+    ${m.frames && m.frames.frames ? `<div class="pfstats"><span class="note">Frame times, whole run</span>${frameStatsHtml(m.frames)}</div>` : ""}
+    ${(m.snapshots || []).length ? `<div class="snaps">${m.snapshots.map((f) => `<a href="/api/files/${esc(m.id)}/${esc(f)}" target="_blank" rel="noopener"><img src="/api/files/${esc(m.id)}/${esc(f)}" alt="${esc(m.game.title)} ${esc(f)}" loading="lazy">${esc(f.replace("snap-", "").replace(".png", ""))}</a>`).join("")}</div>` : ""}
+    ${crit.length ? `<ul class="hcrit">${crit.slice(0, 40).map((i) => `<li class="${i.severity === "critical" ? "sev-c" : "sev-e"}">${esc(i.text || i.sig)}${i.count > 1 ? ` ×${i.count}` : ""}</li>`).join("")}</ul>` : `<div class="note">No critical failures or errors.</div>`}`, "run:" + id);
+}
+
+$("historyview").addEventListener("submit", (e) => {
+  const form = e.target.closest("[data-search]");
+  if (!form) return;
+  e.preventDefault();
+  act(async () => {
+    const q = form.elements.q.value.trim();
+    const r = await api(`/api/search/${encodeURIComponent(form.dataset.search)}?q=${encodeURIComponent(q)}&max=300`);
+    const box = form.parentElement;
+    box.querySelector("[data-searchnote]").textContent = `${r.total} matching line${r.total === 1 ? "" : "s"}${r.total > r.hits.length ? `, first ${r.hits.length} shown` : ""}`;
+    const out = box.querySelector("[data-searchout]");
+    out.innerHTML = r.hits.map((h) => `<span>${h.line}</span>  ${esc(h.text)}`).join("\n");
+    out.hidden = !r.hits.length;
+  });
+});
+$("historyview").addEventListener("click", (e) => act(async () => {
+  if (e.target.closest("[data-close]")) { hist.open = null; $("hdetail").hidden = true; renderSweepList(); renderRunList(); return; }
+  if (e.target.closest("[data-copy]")) {
+    try { await navigator.clipboard.writeText(hist.report); $("copynote").textContent = "Report copied as Markdown."; }
+    catch { $("copynote").innerHTML = `<textarea rows="8" style="width:100%">${esc(hist.report)}</textarea>`; }
+    return;
+  }
+  const pick = e.target.closest("[data-pick]");
+  if (pick) {
+    const id = pick.dataset.pick;
+    hist.picked = pick.checked ? [...hist.picked.filter((x) => x !== id), id].slice(-2) : hist.picked.filter((x) => x !== id);
+    renderSweepList();
+    return;
+  }
+  const sw = e.target.closest("[data-sweep]");
+  if (sw) return openSweep(sw.dataset.sweep);
+  const run = e.target.closest("[data-run]");
+  if (run) return openRun(run.dataset.run);
+}));
+$("cmpbtn").addEventListener("click", () => act(compareSweeps));
+$("rungame").addEventListener("change", renderRunList);
+$("runs").addEventListener("click", (e) => {
+  const r = e.target.closest("[data-run]");
+  if (!r) return;
+  showTab("history");
+  act(async () => { await loadHistory(); await openRun(r.dataset.run); });
+});
+
+// ----- runs -----
+async function loadRuns() {
+  const runs = await api("/api/runs");
+  $("runs").innerHTML = runs.length ? runs.slice(0, 30).map((r) => {
+    const c = r.issue_counts || {};
+    const bad = r.exit_code !== 0 && !r.stopped_by_user;
+    return `<div class="run" data-run="${esc(r.id)}" title="Open in History">
+      <div class="l1"><b>${esc(r.game.title)}</b><span class="${bad ? "sev-c" : "note"}">${bad ? "crashed" : r.stopped_by_user ? "stopped" : "exited"}</span></div>
+      <div class="l2"><span>${esc(r.id.slice(4, 6))}/${esc(r.id.slice(6, 8))} ${esc(r.id.slice(9, 11))}:${esc(r.id.slice(11, 13))}</span><span>frame ${r.max_frame || 0}</span>
+      <span class="sev-c">${c.critical ?? 0}C</span><span class="sev-e">${c.error ?? 0}E</span><span class="sev-w">${c.warning ?? 0}W</span>${r.commit ? `<span>${esc(r.commit)}${r.dirty_files ? "+" : ""}</span>` : ""}</div>
+    </div>`;
+  }).join("") : `<div class="empty">No runs yet.</div>`;
+  return runs;
+}
+
+async function loadPrevSigs(gameId, excludeId) {
+  const runs = await api("/api/runs");
+  const prev = runs.find((r) => r.game.id === gameId && r.id !== excludeId && r.end);
+  if (!prev) { state.prevSigs = null; return; }
+  const d = await api(`/api/runs/${encodeURIComponent(prev.id)}`);
+  state.prevSigs = new Set(d.issues.map((i) => i.sig));
+}
+
+// ----- games and macro -----
+function currentGame() { return state.games.find((g) => g.id === $("game").value); }
+
+async function loadMacro() {
+  const g = currentGame();
+  if (!g) return;
+  $("macro").value = (await api(`/api/macro?game=${encodeURIComponent(g.id)}`)).text;
+  $("macronote").textContent = "";
+}
+
+$("game").addEventListener("change", () => { loadMacro(); try { localStorage.setItem("kytylive.game", $("game").value); } catch {} });
+
+$("savemacro").addEventListener("click", async () => {
+  try {
+    await api("/api/macro", { game: currentGame().id, text: $("macro").value });
+    $("macronote").className = "note"; $("macronote").textContent = "Saved. It plays on the next run.";
+  } catch (e) { $("macronote").className = "note bad"; $("macronote").textContent = e.message; }
+});
+
+// ----- actions -----
+async function act(fn) {
+  try { await fn(); } catch (e) { addLog("log", { text: e.message }, "err"); }
+}
+
+$("run").addEventListener("click", () => act(async () => {
+  const g = currentGame();
+  if (!g) throw new Error("Pick a game first.");
+  await api("/api/macro", { game: g.id, text: $("macro").value });
+  await api("/api/run", { game: g.id, options: selectedOptions(), display: selectedDisplay(), flags: $("sweepflags").value.trim() });
+}));
+$("stop").addEventListener("click", () => act(() => api("/api/stop", {})));
+function showSnapshot(r) {
+  const div = document.createElement("div");
+  div.className = r.reason ? "hit" : "input";
+  const label = r.reason ? `snapshot when ${r.reason.replace(/_/g, " ")} was logged` : "snapshot";
+  div.innerHTML = `<span class="t">${r.t.toFixed(1)}</span>▣ ${esc(label)} <a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.file)}</a><br><img src="${esc(r.url)}" alt="Game window at ${r.t.toFixed(1)}s" style="max-width:100%;margin:4px 0;border:1px solid var(--line)">`;
+  queueLogNode("log", div);
+}
+$("snap").addEventListener("click", () => act(async () => showSnapshot(await api("/api/snapshot", {}))));
+for (const id of ["snapevery", "snapkeep"]) {
+  $(id).addEventListener("change", () => act(async () => {
+    const r = await api("/api/autosnap", { every: Number($("snapevery").value), keep: Number($("snapkeep").value) });
+    $("snapevery").value = r.every;
+    $("snapkeep").value = r.keep;
+  }));
+}
+$("rebuild").addEventListener("click", () => act(async () => {
+  clearLog("buildlog");
+  showTab("build");
+  const g = currentGame();
+  if (g) await api("/api/macro", { game: g.id, text: $("macro").value });
+  await api("/api/rebuild", { rerun: !!g, game: g ? g.id : null, options: selectedOptions(), display: selectedDisplay(), flags: $("sweepflags").value.trim() });
+}));
+
+function renderPad() {
+  $("pad").innerHTML = Object.entries(state.keys).map(([k, label]) =>
+    `<button class="key" data-key="${esc(k)}" disabled><b>${esc(k)}</b><small>${esc(label)}</small></button>`).join("");
+}
+$("pad").addEventListener("click", (e) => act(async () => {
+  const b = e.target.closest(".key");
+  if (!b) return;
+  const r = await api("/api/key", { key: b.dataset.key });
+  if ($("record").checked && r.ok) {
+    const ta = $("macro");
+    ta.value = (ta.value && !ta.value.endsWith("\n") ? ta.value + "\n" : ta.value) + `${r.t} ${b.dataset.key}\n`;
+    $("macronote").className = "note"; $("macronote").textContent = "Recorded. Save to keep it.";
+  }
+}));
+
+// ----- hot patch -----
+function renderHot() {
+  const n = state.patched.size;
+  $("hotstatus").textContent = state.phase !== "running" ? "Game not running"
+    : state.hotGen == null ? "No patch loaded"
+    : `Patch #${state.hotGen} live, ${n} function${n === 1 ? "" : "s"} redirected`;
+  $("hotfns").innerHTML = [...state.patched.values()].map((name) => `<span class="fn">${esc(name)}</span>`).join("");
+  renderIssues();
+}
+
+function showCompile(r) {
+  if (!r) return;
+  $("hotcompile").textContent = r.ok ? `compiled in ${r.seconds}s` : "compile failed";
+  $("hotcompile").className = r.ok ? "note" : "note bad";
+  const errs = (r.diagnostics || []).filter((d) => d.kind !== "note");
+  $("hotdiag").innerHTML = r.ok && !errs.length ? ""
+    : errs.length ? errs.slice(0, 8).map((d) => `<div class="${d.kind}">${esc(d.file)}:${d.line}: ${esc(d.msg)}</div>`).join("")
+    : `<div>${esc((r.output || "").split(/\r?\n/).slice(-4).join(" "))}</div>`;
+}
+
+$("hotbuild").addEventListener("click", () => act(async () => showCompile(await api("/api/hot/compile", {}))));
+$("hotauto").addEventListener("change", (e) => act(() => api("/api/hot/auto", { on: e.target.checked })));
+
+// ----- shaders -----
+const shaders = { list: new Map(), dumped: new Map(), status: new Map(), overrides: new Set(), find: "" };
+// "cs_657ad04626bf9d55_44484778d844c2e0" -> the shape the translated list uses.
+const dumpedShader = (name) => ({ name, stage: name.slice(0, 2), hash: name.slice(3, 19), t: -1, dumped: true });
+
+function shaderState(name) {
+  const st = shaders.status.get(name);
+  const has = shaders.overrides.has(name);
+  if (st && st.event === "rejected") return { cls: "rejected", label: "Rejected", err: st.error };
+  if (st && st.event === "applied" && has) return { cls: "applied", label: "Override live", err: "" };
+  if (has) return { cls: "pending", label: "Override saved", err: "" };
+  return null;
+}
+
+let shadersQueued = false;
+function renderShaders() {
+  if (shadersQueued) return;
+  shadersQueued = true;
+  requestAnimationFrame(() => {
+    shadersQueued = false;
+    const q = shaders.find.toLowerCase().replace(/^0x/, "");
+    const all = [...shaders.list.values(), ...[...shaders.dumped.values()].filter((d) => !shaders.list.has(d.name))];
+    const hits = all.filter((s) => !q || s.name.includes(q))
+      .sort((a, b) => (shaderState(b.name) ? 1 : 0) - (shaderState(a.name) ? 1 : 0) || b.t - a.t);
+    $("shadercount").textContent = all.length ? `${shaders.list.size} this run · ${all.length} in all` : "";
+    $("shaderlist").innerHTML = hits.slice(0, 60).map((s) => {
+      const st = shaderState(s.name);
+      const has = shaders.overrides.has(s.name);
+      return `<div class="shader" data-name="${esc(s.name)}">
+        <code title="${esc(s.name)}"><b>${esc(s.stage)}</b>${esc(s.hash)}</code>
+        <span class="acts">${st ? `<span class="pill ${st.cls}">${esc(st.label)}</span>` : ""}
+          <button data-act="loops" title="Cap this shader's loops to find one that never ends">Loops</button><button data-act="edit">Edit</button>${has ? '<button data-act="revert">Revert</button>' : ""}</span>
+        ${st && st.err ? `<div class="err">${esc(st.err)}</div>` : ""}
+        ${shaders.loops && shaders.loops.name === s.name ? loopCapHtml(shaders.loops) : ""}
+      </div>`;
+    }).join("");
+  });
+}
+
+function loopCapHtml(d) {
+  if (!d.loops.length) return `<div class="loopcap"><span class="note">This shader has no loops.</span></div>`;
+  const rows = d.loops.map((l) => `<label class="${l.cappable ? "" : "off"}"><input type="checkbox" data-loop="${l.index}" ${d.capped.includes(l.index) ? "checked" : ""} ${l.cappable ? "" : "disabled"}>
+    loop ${l.index} · line ${l.line}${l.cappable ? ` · exits when ${l.exit_when}` : " · no single exit test, cannot cap"}</label>`).join("");
+  return `<div class="loopcap">
+    <div class="note">Capped loops stop after the limit, counted per shader invocation. If a hang goes away with a loop capped, that loop was spinning. Diagnostic only: it changes what the shader computes. Applies the next time the shader is compiled.</div>
+    <div class="lrows">${rows}</div>
+    <div class="lctl"><label>limit <input type="number" min="1" step="1" value="${d.limit || 262144}" data-role="limit"></label>
+      <button data-act="cap">Save cap</button>${d.capped.length ? `<span class="pill">capped: ${d.capped.join(", ")}</span>` : ""}</div>
+  </div>`;
+}
+
+$("shaderfind").addEventListener("input", (e) => { shaders.find = e.target.value.trim(); renderShaders(); });
+$("shaderlist").addEventListener("click", (e) => act(async () => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const row = b.closest(".shader");
+  const name = row.dataset.name;
+  if (b.dataset.act === "loops") {
+    shaders.loops = shaders.loops && shaders.loops.name === name ? null : await api("/api/shader/loops", { name });
+  } else if (b.dataset.act === "cap") {
+    const loops = [...row.querySelectorAll("input[data-loop]:checked")].map((i) => Number(i.dataset.loop));
+    const limit = Number(row.querySelector('input[data-role="limit"]').value);
+    const r = await api("/api/shader/loopcap", { name, loops, limit });
+    shaders.loops = await api("/api/shader/loops", { name });
+    r.capped.length ? shaders.overrides.add(name) : shaders.overrides.delete(name);
+    addLog("log", { text: r.capped.length ? `◆ loop cap saved for ${name}: loops ${r.capped.join(", ")} at ${r.limit} iterations` : `◆ loop cap removed for ${name}` }, "input");
+  } else if (b.dataset.act === "edit") {
+    const r = await api("/api/shader/override", { name, open: true });
+    shaders.overrides.add(name);
+    addLog("log", { text: `◆ editing shader override ${r.path}` }, "input");
+  } else {
+    await api("/api/shader/revert", { name });
+    if (shaders.loops && shaders.loops.name === name) shaders.loops = null;
+    shaders.overrides.delete(name);
+    shaders.status.delete(name);
+  }
+  renderShaders();
+}));
+
+// ----- events -----
+function connect() {
+  const es = new EventSource("/api/events");
+  es.addEventListener("phase", (e) => setPhase(JSON.parse(e.data).phase));
+  es.addEventListener("stats", (e) => setStats(JSON.parse(e.data)));
+  es.addEventListener("run", async (e) => {
+    const run = JSON.parse(e.data);
+    state.issues.clear();
+    state.totals = null;
+    perf.samples = [];
+    frameData.batches = [];
+    renderPerf();
+    $("crashcard").hidden = true;
+    shaders.list.clear();
+    shaders.status.clear();
+    renderShaders();
+    state.patched.clear();
+    state.hotGen = null;
+    renderHot();
+    clearLog("log");
+    $("verdict").classList.remove("show");
+    if (!(sweep && sweep.running)) showTab("log");
+    renderIssues();
+    await loadPrevSigs(run.game.id, run.id);
+    renderIssues();
+  });
+  es.addEventListener("issue", (e) => {
+    const i = JSON.parse(e.data);
+    state.issues.set(i.sig, i);
+    if (i.severity === "critical") addLog("log", { t: i.first, text: "▲ " + (i.text || i.sig) }, "hit");
+    renderIssues();
+  });
+  es.addEventListener("log", (e) => addLog("log", JSON.parse(e.data)));
+  es.addEventListener("snapshot", (e) => showSnapshot(JSON.parse(e.data)));
+  es.addEventListener("input", (e) => {
+    const d = JSON.parse(e.data);
+    addLog("log", { t: d.t, text: `→ pressed ${d.key}${d.ok ? "" : ` (failed: ${d.note})`}` }, d.ok ? "input" : "err");
+    if (!d.ok) { $("padnote").className = "note bad"; $("padnote").textContent = `Last key failed: ${d.note}.`; }
+  });
+  es.addEventListener("exit", async (e) => {
+    const d = JSON.parse(e.data);
+    // Refresh counts: duplicates after an issue's first sighting are not streamed.
+    const s = await api("/api/state");
+    for (const i of s.issues) state.issues.set(i.sig, i);
+    state.totals = s.issue_totals;
+    renderIssues();
+    showVerdict(d.run, d.diff);
+    loadRuns();
+  });
+  es.addEventListener("build", (e) => { const d = JSON.parse(e.data); addLog("buildlog", d, d.error ? "err" : ""); });
+  es.addEventListener("build_progress", (e) => {
+    const d = JSON.parse(e.data);
+    $("progress").hidden = false;
+    $("progress").firstElementChild.style.width = `${(100 * d.done / d.total).toFixed(1)}%`;
+  });
+  es.addEventListener("build_done", (e) => {
+    const d = JSON.parse(e.data);
+    $("progress").hidden = true;
+    addLog("buildlog", { text: d.ok ? `Build and install finished in ${d.seconds}s.` : `Build failed${d.stage ? ` while ${d.stage}` : ""} after ${d.seconds}s.${d.errors ? ` ${d.errors} error lines above.` : ""}` }, d.ok ? "input" : "err");
+  });
+  es.addEventListener("hot", (e) => {
+    const h = JSON.parse(e.data);
+    if (h.event === "patched") state.patched.set(h.nid, h.name);
+    if (h.event === "restored") state.patched.delete(h.nid);
+    if (h.event === "active") state.hotGen = h.generation;
+    addLog("log", { t: h.t, text: `⟳ hot patch: ${h.text}` }, h.event === "error" ? "err" : "input");
+    renderHot();
+  });
+  es.addEventListener("hot_compile", (e) => {
+    const r = JSON.parse(e.data);
+    showCompile(r);
+    addLog("log", { text: r.ok ? `⟳ patch compiled in ${r.seconds}s (${r.reason})` : `⟳ patch failed to compile (${r.reason})` }, r.ok ? "input" : "err");
+  });
+  es.addEventListener("shader", (e) => {
+    const s = JSON.parse(e.data);
+    if (s.event === "translated") {
+      shaders.list.set(s.name, s);
+    } else {
+      shaders.status.set(s.name, s);
+      if (s.event === "applied") shaders.overrides.add(s.name);
+      if (s.event === "reverted") { shaders.overrides.delete(s.name); shaders.status.delete(s.name); }
+      const text = s.event === "rejected" ? `shader override rejected ${s.name}: ${s.error}` : `shader override ${s.event} ${s.name}`;
+      addLog("log", { t: s.t, text: `◆ ${text}` }, s.event === "rejected" ? "err" : "input");
+    }
+    renderShaders();
+  });
+  es.addEventListener("crash", (e) => {
+    const c = JSON.parse(e.data);
+    $("crashcard").innerHTML = `<b>Crash analysis</b>${crashHtml(c)}`;
+    $("crashcard").hidden = false;
+  });
+  es.addEventListener("tests", (e) => {
+    tests.current = JSON.parse(e.data);
+    if (!tests.current.running) act(loadTests); else renderTests();
+  });
+  es.addEventListener("profile", (e) => {
+    const d = JSON.parse(e.data);
+    if (d.state === "recording") setProfiling(true, `Recording since ${d.started}s…`);
+    else if (d.state === "done") { setProfiling(false, `Profile saved with the run (${d.seconds} s, ${d.all.samples} samples, profiler held the thread ${d.overhead_percent}% of the time).`); showProfile(d); }
+    else if (d.state === "failed") setProfiling(false, `Profile failed: ${d.error}`);
+  });
+  es.addEventListener("frames", (e) => {
+    const d = JSON.parse(e.data);
+    frameData.batches.push([d.t, d.ms]);
+    if (frameData.batches.length > 600) frameData.batches.splice(0, 120);
+    renderFrames();
+  });
+  es.addEventListener("perf", (e) => {
+    perf.samples.push(JSON.parse(e.data));
+    if (perf.samples.length > 3600) perf.samples.splice(0, 600);
+    renderPerf();
+  });
+  es.addEventListener("sweep", (e) => {
+    sweep = JSON.parse(e.data);
+    renderSweep();
+    setPhase(state.phase);
+  });
+  es.addEventListener("notice", (e) => addLog("log", JSON.parse(e.data), "err"));
+  es.onerror = () => { $("phase").textContent = "Reconnecting"; };
+  es.addEventListener("hello", async () => {
+    const s = await api("/api/state");
+    setPhase(s.phase);
+    setStats(s.stats);
+    $("commit").textContent = s.commit || "";
+    if (s.sweep) { sweep = s.sweep; renderSweep(); }
+    perf.samples = s.perf || [];
+    frameData.batches = s.frames || [];
+    renderPerf();
+    if (s.shaders) {
+      $("shadersection").hidden = !s.shaders.enabled;
+      shaders.list = new Map(s.shaders.translated.map((x) => [x.name, x]));
+      shaders.dumped = new Map((s.shaders.dumped || []).map((n) => [n, dumpedShader(n)]));
+      shaders.status = new Map(Object.entries(s.shaders.status || {}));
+      shaders.overrides = new Set(s.shaders.overrides);
+      renderShaders();
+    }
+    if (s.hot) {
+      $("hotsection").hidden = !s.hot.enabled;
+      $("hotauto").checked = s.hot.auto;
+      $("hotpath").textContent = `Edit ${s.hot.sources.join(", ") || s.hot.folder + "\\*.cpp"}`;
+      state.patched = new Map(s.phase === "running" ? Object.entries(s.hot.patched || {}) : []);
+      state.hotGen = s.phase === "running" ? s.hot.generation : null;
+      showCompile(s.hot.last);
+      renderHot();
+    }
+    if (s.run && s.phase === "running") {
+      state.issues = new Map(s.issues.map((i) => [i.sig, i]));
+      state.totals = s.issue_totals;
+      clearLog("log");
+      s.recent.forEach((r) => addLog("log", r));
+      await loadPrevSigs(s.run.game.id, s.run.id);
+    }
+    renderIssues();
+  });
+}
+
+(async function init() {
+  const s = await api("/api/state");
+  state.keys = s.keys;
+  emuOptions = s.options || [];
+  renderDisplays(s.displays || []);
+  if (s.autosnap) {
+    $("snapevery").value = s.autosnap.every;
+    $("snapkeep").value = s.autosnap.keep;
+  }
+  renderOptions();
+  renderPad();
+  state.games = await api("/api/games");
+  renderSweepGames();
+  $("game").innerHTML = state.games.map((g) => `<option value="${esc(g.id)}">${esc(g.title)} (${esc(g.id)})</option>`).join("");
+  let saved = null;
+  try { saved = localStorage.getItem("kytylive.game"); } catch {}
+  const pick = (s.last_game && s.last_game.id) || saved;
+  if (pick && state.games.some((g) => g.id === pick)) $("game").value = pick;
+  await loadMacro();
+  await loadRuns();
+  renderIssues();
+  connect();
+})();
+</script>
+</body>
+</html>
