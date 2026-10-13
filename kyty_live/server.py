@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlparse
 from . import config as settings
 from .freshsave import FreshSave
 from .settings import Settings
+from .buildstamp import read_build_stamp
 from .classifier import Classifier, diff_runs, parse_hot_line, parse_shader_line, strip_ansi
 from .hot import HOT_OUT, HOT_SRC, HotCompiler
 from .history import compare, list_sweeps, load_sweep, report_markdown
@@ -188,6 +189,7 @@ class Session:
                 "last_game": self.last_game,
                 "keys": {k: v[1] for k, v in KEYS.items()},
                 "commit": _git(self.cfg["src_dir"], "rev-parse", "--short", "HEAD"),
+                "binary": read_build_stamp(Path(self.cfg["install_dir"]) / "kyty_emulator.exe"),
                 "sweep": self.sweep_view(),
                 "testing": self.testing,
                 "perf": (getattr(self, "perf", None) or [])[-180:] if self.phase == "running" else [],
@@ -228,8 +230,12 @@ class Session:
             args = [str(exe), "--game", game["path"], *self.cfg["emulator_args"], *tool_flags, *extra_args]
             commit = _git(self.cfg["src_dir"], "rev-parse", "--short", "HEAD")
             dirty = len([l for l in _git(self.cfg["src_dir"], "status", "--porcelain", "-uno").splitlines() if l.strip()])
+            # The build the binary was compiled from: an A/B test swaps executables without touching
+            # the source tree, so the git HEAD above can name a different build.
+            binary = read_build_stamp(exe)
             self.run = {"id": run_id, "game": game, "args": args[1:], "start": time.time(), "end": None,
                         "exit_code": None, "exit_reason": None, "commit": commit, "dirty_files": dirty,
+                        "binary": binary,
                         "max_frame": 0, "last_fps": None, "first_frame_s": None, "macro": macro_text,
                         "dev_features": dev_features}
             self.classifier = Classifier(self.nids)

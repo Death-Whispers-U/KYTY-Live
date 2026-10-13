@@ -317,6 +317,7 @@ textarea { width: 100%; min-height: 120px; resize: vertical; padding: 8px; borde
 .pill.run { background: var(--warn-bg); color: var(--warn); }
 @media (max-width: 600px) { .sweeprow { grid-template-columns: 1fr; } .sweeprow img, .sweeprow .noimg { width: 100%; } }
 .sev-c { color: var(--crit); } .sev-e { color: var(--err); } .sev-w { color: var(--warn); }
+.build-mismatch { color: var(--warn); font-weight: 600; }
 
 @media (max-width: 1100px) {
   .app { height: auto; min-height: 100vh; }
@@ -500,6 +501,21 @@ textarea { width: 100%; min-height: 120px; resize: vertical; padding: 8px; borde
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+// The build a run's binary was compiled from. An A/B test swaps binaries without touching the
+// source tree, so a binary that differs from the tree's commit is shown with that commit. Runs
+// recorded before binaries were stamped show the tree's commit, as they always did.
+function buildHtml(m, long) {
+  const b = m && m.binary;
+  if (!b) {
+    if (!m || !m.commit) return "";
+    return esc(m.commit) + (m.dirty_files ? (long ? ` + ${m.dirty_files} changed files` : "+") : "");
+  }
+  const build = esc(b.build + (b.dirty ? "-dirty" : ""));
+  // Short hashes differ in length (git lengthens them as a repository grows), so compare prefixes.
+  if (!m.commit || m.commit.startsWith(b.build) || b.build.startsWith(m.commit)) return build;
+  const tree = long ? ` (source tree at ${esc(m.commit)})` : ` ≠ ${esc(m.commit)}`;
+  return `<span class="build-mismatch" title="The binary that ran was not built from the source tree's current commit">${build}${tree}</span>`;
+}
 const SEV = ["critical", "error", "warning", "info"];
 const SEV_LABEL = { critical: "Critical", error: "Errors", warning: "Warnings", info: "Info" };
 const KIND_LABEL = {
@@ -998,7 +1014,7 @@ function showVerdict(run, diff) {
   const v = $("verdict");
   const crashed = run.exit_code !== 0 && !run.stopped_by_user;
   let html = `<span class="head ${crashed ? "crit" : ""}">${esc(run.game.title)}: ${esc(run.exit_reason)}</span>
-    <span class="note">ran ${fmtTime((run.end - run.start))}, reached frame ${run.max_frame || 0}${run.commit ? `, build ${esc(run.commit)}${run.dirty_files ? ` + ${run.dirty_files} changed files` : ""}` : ""}</span>`;
+    <span class="note">ran ${fmtTime((run.end - run.start))}, reached frame ${run.max_frame || 0}${(run.binary || run.commit) ? `, build ${buildHtml(run, true)}` : ""}</span>`;
   if (diff) {
     // Average fps, not frame count: runs are stopped at different times.
     const avg = (r) => (r.max_frame && r.end > r.start ? r.max_frame / (r.end - r.start) : null);
@@ -1162,7 +1178,7 @@ function renderRunList() {
       <div class="main"><b>${esc(r.game.title)}</b>
         <div class="sub"><span>${esc(when(r.id))}</span><span>frame ${r.max_frame || 0}</span><span>fps ${r.last_fps != null ? Math.round(r.last_fps) : "–"}</span>
           <span class="sev-c">${c.critical ?? 0}C</span><span class="sev-e">${c.error ?? 0}E</span><span class="sev-w">${c.warning ?? 0}W</span>
-          <span>${esc(r.commit || "")}${r.dirty_files ? "+" : ""}</span>${flags ? `<code>${esc(flags)}</code>` : ""}${r.sweep ? `<span>sweep ${esc(when(r.sweep))}</span>` : ""}</div></div>
+          <span>${buildHtml(r, false)}</span>${flags ? `<code>${esc(flags)}</code>` : ""}${r.sweep ? `<span>sweep ${esc(when(r.sweep))}</span>` : ""}</div></div>
       <span class="note">${(r.snapshots || []).length ? `${r.snapshots.length} snap` : ""}</span></div>`;
   }).join("") : `<div class="empty">No runs${game ? " for this game" : ""} yet.</div>`;
 }
@@ -1219,7 +1235,7 @@ async function openRun(id) {
   const mb = (d.log_bytes / 1048576).toFixed(1);
   showDetail(`<div class="dhead"><b>${esc(m.game.title)}</b><span class="note">${esc(m.game.id)} · ${esc(when(m.id))}</span>
     <span class="pill ${runOutcome(m) === "crashed" ? "bad" : "ok"}">${esc(m.exit_reason || runOutcome(m))}</span><span class="spacer"></span>${closeBtn}</div>
-    <div class="facts"><span>build ${esc(m.commit || "?")}${m.dirty_files ? ` + ${m.dirty_files} changed files` : ""}</span>
+    <div class="facts"><span>build ${buildHtml(m, true) || "?"}</span>
       <span>ran ${m.end ? Math.round(m.end - m.start) : "?"}s</span><span>first frame ${m.first_frame_s ?? "–"}${m.first_frame_s != null ? "s" : ""}</span>
       <span>frame ${m.max_frame || 0}</span><span>fps ${m.last_fps != null ? Math.round(m.last_fps) : "–"}</span>
       ${flags ? `<span>flags <code>${esc(flags)}</code></span>` : "<span>no extra flags</span>"}${m.sweep ? `<span>part of sweep ${esc(when(m.sweep))}</span>` : ""}
@@ -1285,7 +1301,7 @@ async function loadRuns() {
     return `<div class="run" data-run="${esc(r.id)}" title="Open in History">
       <div class="l1"><b>${esc(r.game.title)}</b><span class="${bad ? "sev-c" : "note"}">${bad ? "crashed" : r.stopped_by_user ? "stopped" : "exited"}</span></div>
       <div class="l2"><span>${esc(r.id.slice(4, 6))}/${esc(r.id.slice(6, 8))} ${esc(r.id.slice(9, 11))}:${esc(r.id.slice(11, 13))}</span><span>frame ${r.max_frame || 0}</span>
-      <span class="sev-c">${c.critical ?? 0}C</span><span class="sev-e">${c.error ?? 0}E</span><span class="sev-w">${c.warning ?? 0}W</span>${r.commit ? `<span>${esc(r.commit)}${r.dirty_files ? "+" : ""}</span>` : ""}</div>
+      <span class="sev-c">${c.critical ?? 0}C</span><span class="sev-e">${c.error ?? 0}E</span><span class="sev-w">${c.warning ?? 0}W</span>${(r.binary || r.commit) ? `<span>${buildHtml(r, false)}</span>` : ""}</div>
     </div>`;
   }).join("") : `<div class="empty">No runs yet.</div>`;
   return runs;
@@ -1597,7 +1613,7 @@ function connect() {
     const s = await api("/api/state");
     setPhase(s.phase);
     setStats(s.stats);
-    $("commit").textContent = s.commit || "";
+    $("commit").innerHTML = buildHtml({ binary: s.binary, commit: s.commit }, false);
     if (s.sweep) { sweep = s.sweep; renderSweep(); }
     perf.samples = s.perf || [];
     frameData.batches = s.frames || [];
